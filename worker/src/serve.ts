@@ -23,8 +23,8 @@ function landingPage(env: Env): string {
   const head = escapeHtml(dot === -1 ? host : host.slice(0, dot));
   const tail = dot === -1 ? "" : escapeHtml(host.slice(dot));
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(host)}</title>
-<style>body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;display:grid;place-items:center;min-height:100dvh;margin:0}main{text-align:center;display:grid;gap:18px}b{color:#d99a5b}a{color:#8a8172;text-decoration:none;font-size:13px}a:hover{color:#d99a5b}</style>
-<main><div>${head}${tail ? `<b>${tail}</b>` : ""}</div><a href="https://args.io/cat/nzip">args ↗</a></main>`;
+<style>body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;margin:0;min-height:100dvh;display:flex;flex-direction:column}main{flex:1;display:grid;place-items:center;text-align:center}b{color:#d99a5b}footer{text-align:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}a{color:#6b6355;font-size:12px;text-decoration:underline}a:hover{color:#d99a5b}</style>
+<main><div>${head}${tail ? `<b>${tail}</b>` : ""}</div></main><footer><a href="https://args.io/cat/nzip">args</a></footer>`;
 }
 
 function htmlResponse(body: string, status: number, headers: HeadersInit = {}): Response {
