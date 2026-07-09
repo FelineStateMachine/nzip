@@ -15,16 +15,16 @@ const escapeHtml = (s: string): string =>
   s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
 
 // The landing shows the deployment's own hostname, derived from PUBLIC_BASE, so
-// the committed source carries no operator-specific branding. The first label
-// is plain; the rest (from the first dot) is accented.
+// the committed source carries no operator-specific branding. It pairs that
+// hostname with the nzip wordmark; the coral z is the product's small visual mark.
 function landingPage(env: Env): string {
   const host = new URL(env.PUBLIC_BASE).host;
   const dot = host.indexOf(".");
   const head = escapeHtml(dot === -1 ? host : host.slice(0, dot));
   const tail = dot === -1 ? "" : escapeHtml(host.slice(dot));
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(host)}</title>
-<style>body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;margin:0;min-height:100dvh;display:flex;flex-direction:column}main{flex:1;display:grid;place-items:center;text-align:center}b{color:#d99a5b}footer{text-align:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}a{color:#6b6355;font-size:12px;text-decoration:underline}a:hover{color:#d99a5b}</style>
-<main><div>${head}${tail ? `<b>${tail}</b>` : ""}</div></main><footer><a href="https://args.io/cat/nzip">args</a></footer>`;
+<style>body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;margin:0;min-height:100dvh;display:flex;flex-direction:column}main{flex:1;display:grid;place-items:center;padding:24px;text-align:center}.landing{display:grid;gap:24px;justify-items:center}.wordmark{color:#f2e8d4;font-size:clamp(40px,10vw,72px);font-weight:700;letter-spacing:-.18em;line-height:.8}.wordmark .z{color:#ff6b4a}.host{font-size:clamp(14px,2vw,18px);letter-spacing:-.06em}.host b{color:#d99a5b}footer{text-align:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}a{color:#6b6355;font-size:12px;text-decoration:underline}a:hover{color:#d99a5b}</style>
+<main><div class="landing"><div class="wordmark" aria-label="nzip">n<span class="z">z</span>ip</div><div class="host">${head}${tail ? `<b>${tail}</b>` : ""}</div></div></main><footer><a href="https://args.io/cat/nzip">args</a></footer>`;
 }
 
 function htmlResponse(body: string, status: number, headers: HeadersInit = {}): Response {
