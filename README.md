@@ -1,5 +1,3 @@
-<div align="center">
-
 # `nzip`
 
 **Push a directory of HTML from the terminal. Get a four-character URL back.**
@@ -7,9 +5,7 @@
 _A personal share tool. Deno CLI → Cloudflare Worker → R2 + D1. No daemon, no build step, no
 redeploys._
 
-[![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli)
-
-</div>
+[![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli) · [args.io/cat/nzip](https://args.io/cat/nzip)
 
 ```console
 $ nzip push ./demo work:demo --ttl 30d
@@ -153,8 +149,7 @@ sites pushed from this machine.)
 service. Use the same URL you set as `vars.PUBLIC_BASE` in your Wrangler config. Standing up that
 server is the one-time setup below.
 
-<details>
-<summary><b>Self-hosting: one-time Cloudflare setup</b></summary>
+## Self-hosting: one-time Cloudflare setup
 
 See [`worker/setup.md`](worker/setup.md) for the full checklist. In short:
 
@@ -187,10 +182,7 @@ Two gotchas learned the hard way:
   "custom_domain": true }]`) needs the zone on your
   account; it provisions DNS and the cert automatically on deploy.
 
-</details>
-
-<details>
-<summary><b>Development</b></summary>
+## Development
 
 ```sh
 deno task check                                   # typecheck CLI + shared
@@ -203,5 +195,3 @@ nzip auth --server http://localhost:8787 --token dev-token-local-only
 
 Test the GC cron: `npx wrangler dev --test-scheduled`, then
 `curl "http://localhost:8787/__scheduled?cron=0+4+*+*+*"`.
-
-</details>

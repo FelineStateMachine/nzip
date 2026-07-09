@@ -23,8 +23,8 @@ function landingPage(env: Env): string {
   const head = escapeHtml(dot === -1 ? host : host.slice(0, dot));
   const tail = dot === -1 ? "" : escapeHtml(host.slice(dot));
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(host)}</title>
-<style>body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;display:grid;place-items:center;min-height:100dvh;margin:0}b{color:#d99a5b}</style>
-<div>${head}${tail ? `<b>${tail}</b>` : ""}</div>`;
+<style>body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;display:grid;place-items:center;min-height:100dvh;margin:0}main{text-align:center;display:grid;gap:18px}b{color:#d99a5b}a{color:#8a8172;text-decoration:none;font-size:13px}a:hover{color:#d99a5b}</style>
+<main><div>${head}${tail ? `<b>${tail}</b>` : ""}</div><a href="https://args.io/cat/nzip">args ↗</a></main>`;
 }
 
 function htmlResponse(body: string, status: number, headers: HeadersInit = {}): Response {

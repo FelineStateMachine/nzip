@@ -2,7 +2,7 @@
   "name": "@nzip/cli",
   "version": "0.1.1",
   "license": "MIT",
-  "description": "Push a directory of HTML from the terminal and get a four-character URL back — the Deno CLI for nzip, a self-hosted Cloudflare-backed share tool.",
+  "description": "Push a directory of HTML from the terminal and get a four-character URL back. The Deno CLI for nzip, a self-hosted Cloudflare-backed share tool.",
   "exports": "./main.ts",
   "imports": {
     "@std/cli": "jsr:@std/cli@^1.0.0",
