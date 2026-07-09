@@ -4,7 +4,7 @@
 
 **Push a directory of HTML from the terminal. Get a four-character URL back.**
 
-_A personal share tool — Deno CLI → Cloudflare Worker → R2 + D1. No daemon, no build step, no
+_A personal share tool. Deno CLI → Cloudflare Worker → R2 + D1. No daemon, no build step, no
 redeploys._
 
 [![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli)
@@ -23,8 +23,8 @@ $ nzip push ./demo work:demo --ttl 30d
 ## How addresses work
 
 Every share lives at four hex characters. The first digit selects one of **16 registered vaults**,
-the rest a site within it — 4,096 slots per vault, allocated randomly so URLs don't leak how many
-sites exist.
+the rest a site within it. Each vault holds 4,096 slots, allocated randomly so URLs don't leak how
+many sites exist.
 
 ```text
 https://share.example.com/2a3f
@@ -43,24 +43,24 @@ three target forms:
 
 ## Features
 
-- **Instant** — a push is one manifest exchange plus the blobs the server hasn't seen. Nothing
+- **Instant.** A push is one manifest exchange plus the blobs the server hasn't seen. Nothing
   rebuilds, nothing redeploys.
-- **Content-addressed** — per-file sha256 blobs + a canonical manifest per push. Identical files are
-  stored once across every site; re-pushing an unchanged directory uploads `0 new blobs`.
-- **Ephemeral by default** — 14-day TTL, `--ttl 30d` or `--ttl forever` to override. Expired shares
-  answer `410 Gone`; a daily cron sweeps them and garbage-collects unreferenced content.
-- **Revertible** — the last 10 pushes per site are kept. `nzip revert` repoints the address at any
-  of them; the revert itself is recorded as a push.
-- **Password-protectable** — `nzip share work:demo --password …` gates the site behind an unlock
-  form (PBKDF2 hashing, signed per-site cookie, 7 days).
-- **Single-user by design** — one bearer token, stored as a Worker secret and in
+- **Content-addressed.** Per-file sha256 blobs plus a canonical manifest per push. Identical files
+  are stored once across every site; re-pushing an unchanged directory uploads `0 new blobs`.
+- **Ephemeral by default.** 14-day TTL, with `--ttl 30d` or `--ttl forever` to override. Expired
+  shares answer `410 Gone`; a daily cron sweeps them and garbage-collects unreferenced content.
+- **Revertible.** The last 10 pushes per site are kept. `nzip revert` repoints the address at any of
+  them, and the revert itself is recorded as a push.
+- **Password-protectable.** `nzip share work:demo --password …` gates the site behind an unlock form
+  (PBKDF2 hashing, signed per-site cookie, 7 days).
+- **Single-user by design.** One bearer token, stored as a Worker secret and in
   `~/.config/nzip/config.json` (mode 0600).
-- **Locates itself** — `nzip where <target>` prints the local directory this machine pushed a site
-  from. A breadcrumb registry (`~/.config/nzip/paths.json`) records the source path on every push;
-  it self-cleans — expired entries drop on write, `rm` forgets its entry, and `ls` reconciles
-  against the live set. Use it as `cd "$(nzip where personal:plan)"`.
-- **Vault guardrail** — an optional `"allowVaults": ["home"]` in `config.json` restricts which vaults
-  this install may target by name. Pushes or aliases outside the list are refused before any upload —
+- **Locates itself.** `nzip where <target>` prints the local directory this machine pushed a site
+  from. A breadcrumb registry (`~/.config/nzip/paths.json`) records the source path on every push and
+  self-cleans: expired entries drop on write, `rm` forgets its entry, and `ls` reconciles against the
+  live set. Use it as `cd "$(nzip where personal:plan)"`.
+- **Vault guardrail.** An optional `"allowVaults": ["home"]` in `config.json` restricts which vaults
+  this install may target by name. Pushes or aliases outside the list are refused before any upload,
   so a home-project agent can't drop a doc into a vault that sits adjacent to what you share
   professionally. Absent = unrestricted; raw hex addresses bypass it (they name no vault).
 
@@ -94,13 +94,13 @@ flowchart LR
     V(["visitor"]) -- "GET /2a3f" --> W
 ```
 
-A push is a stateless three-step protocol — the manifest itself is the state:
+A push is a stateless three-step protocol, and the manifest itself is the state:
 
-1. `POST /api/push/prepare` — send the manifest, get back which blob hashes the server is missing
-2. `PUT /api/blob/{sha256}` — upload only those, one per request, 6 at a time; the server re-hashes
+1. `POST /api/push/prepare`: send the manifest, get back which blob hashes the server is missing
+2. `PUT /api/blob/{sha256}`: upload only those, one per request, 6 at a time; the server re-hashes
    and rejects mismatches
-3. `POST /api/push/commit` — server re-verifies every blob exists, then commits atomically:
-   resolve/allocate the address, repoint the site, append history
+3. `POST /api/push/commit`: the server re-verifies every blob exists, then commits atomically,
+   resolving or allocating the address, repointing the site, and appending history
 
 Serving is one D1 read (address → manifest, expiry, password) and two R2 reads, with `ETag`
 revalidation and a 60-second cache. Metadata lives in three tables:
@@ -109,17 +109,17 @@ revalidation and a 60-second cache. Metadata lives in three tables:
 | -------- | ------------------------------------------------------------------------ |
 | `vaults` | slot (0–15), name                                                        |
 | `sites`  | address (0–65535), vault, alias, current manifest, expiry, password hash |
-| `pushes` | per-site history (seq, manifest, note) — capped at 10, powers `revert`   |
+| `pushes` | per-site history (seq, manifest, note), capped at 10, powers `revert`    |
 
 **GC safety rule:** an R2 object is deleted only if no live site or retained history entry
-references it _and_ it's older than 24 hours — so an in-flight push can never lose objects to a
+references it _and_ it's older than 24 hours, so an in-flight push can never lose objects to a
 concurrent sweep.
 
 ## Repo layout
 
 ```text
-shared/   manifest canonicalization, hashing, addressing — imported by both sides
-cli/      the nzip command (Deno, no framework) — published as jsr:@nzip/cli
+shared/   manifest canonicalization, hashing, addressing (imported by both sides)
+cli/      the nzip command (Deno, no framework), published as jsr:@nzip/cli
 worker/   Cloudflare Worker: serving + API + GC cron (wrangler)
 ```
 
@@ -130,7 +130,7 @@ manifest hash. It sticks to Web-standard APIs only, so the same code runs under 
 ## Install
 
 The CLI ships on [JSR](https://jsr.io/@nzip/cli). With [Deno](https://docs.deno.com/runtime/) on
-your `PATH`, install it in one line — then point it at your server and push:
+your `PATH`, install it in one line, then point it at your server and push:
 
 ```sh
 deno install -g -A -f -n nzip jsr:@nzip/cli    # 1. install the `nzip` command
@@ -144,13 +144,13 @@ nzip push ./site work:demo                     # 3. get a URL back
 so every later command just works. Upgrade any time by re-running the install line; try it without
 installing via `deno run -A jsr:@nzip/cli --help`.
 
-Adding a **second machine**? Only the CLI is per-machine — the Worker, R2, D1, vaults, and token are
-already provisioned. Install from JSR and run `nzip auth` with the same server and token; every vault
-and site is instantly there. (The `nzip where` breadcrumb registry is local, so it only knows sites
-pushed from this machine.)
+Adding a **second machine**? Only the CLI is per-machine; the Worker, R2, D1, vaults, and token are
+already provisioned. Install from JSR and run `nzip auth` with the same server and token, and every
+vault and site is instantly there. (The `nzip where` breadcrumb registry is local, so it only knows
+sites pushed from this machine.)
 
 `nzip` is self-hosted. The server URL is supplied by the operator; there is no bundled public
-service — use the same URL you set as `vars.PUBLIC_BASE` in your Wrangler config. Standing up that
+service. Use the same URL you set as `vars.PUBLIC_BASE` in your Wrangler config. Standing up that
 server is the one-time setup below.
 
 <details>
