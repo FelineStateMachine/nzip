@@ -1,4 +1,20 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-env
+/**
+ * `nzip` — push a directory of HTML from the terminal and get a four-character
+ * URL back. This is the CLI entrypoint; it parses argv and dispatches to the
+ * command handlers (`auth`, `vault`, `push`, `share`, `ls`, `where`, `rm`,
+ * `status`, `revert`).
+ *
+ * Install and run it as a command rather than importing it:
+ *
+ * ```sh
+ * deno install -g -A -f -n nzip jsr:@nzip/cli
+ * nzip auth --server https://share.example.com
+ * nzip push ./site work:demo
+ * ```
+ *
+ * @module
+ */
 // nzip — push HTML and get a tiny URL back.
 
 import { parseArgs } from "@std/cli/parse-args";

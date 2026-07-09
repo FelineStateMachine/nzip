@@ -35,6 +35,7 @@ const TYPES: Record<string, string> = {
   webmanifest: "application/manifest+json",
 };
 
+/** Resolve a content-type from a path's file extension, defaulting to `application/octet-stream`. */
 export function contentTypeFor(path: string): string {
   const dot = path.lastIndexOf(".");
   const ext = dot === -1 ? "" : path.slice(dot + 1).toLowerCase();
