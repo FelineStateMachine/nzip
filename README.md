@@ -7,6 +7,8 @@
 _A personal share tool — Deno CLI → Cloudflare Worker → R2 + D1. No daemon, no build step, no
 redeploys._
 
+[![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli)
+
 </div>
 
 ```console
@@ -113,15 +115,12 @@ revalidation and a 60-second cache. Metadata lives in three tables:
 references it _and_ it's older than 24 hours — so an in-flight push can never lose objects to a
 concurrent sweep.
 
-The full design doc is a pushable page of its own: [`docs/plan.html`](docs/plan.html).
-
 ## Repo layout
 
 ```text
 shared/   manifest canonicalization, hashing, addressing — imported by both sides
-cli/      the nzip command (Deno, no framework)
+cli/      the nzip command (Deno, no framework) — published as jsr:@nzip/cli
 worker/   Cloudflare Worker: serving + API + GC cron (wrangler)
-docs/     the architecture plan as a self-contained HTML page
 ```
 
 `shared/` is the contract: canonical JSON serialization lives in exactly one file
@@ -130,16 +129,29 @@ manifest hash. It sticks to Web-standard APIs only, so the same code runs under 
 
 ## Install
 
-```sh
-deno install -g -f -n nzip \
-  --allow-net --allow-read --allow-write --allow-env \
-  cli/main.ts
+The CLI ships on [JSR](https://jsr.io/@nzip/cli). With [Deno](https://docs.deno.com/runtime/) on
+your `PATH`, install it in one line — then point it at your server and push:
 
-nzip auth --server https://share.example.com --token <owner-token>
+```sh
+deno install -g -A -f -n nzip jsr:@nzip/cli    # 1. install the `nzip` command
+
+nzip auth --server https://share.example.com   # 2. authenticate (prompts for the token)
+
+nzip push ./site work:demo                     # 3. get a URL back
 ```
 
+`nzip auth` prompts for anything you omit and saves it to `~/.config/nzip/config.json` (mode 0600),
+so every later command just works. Upgrade any time by re-running the install line; try it without
+installing via `deno run -A jsr:@nzip/cli --help`.
+
+Adding a **second machine**? Only the CLI is per-machine — the Worker, R2, D1, vaults, and token are
+already provisioned. Install from JSR and run `nzip auth` with the same server and token; every vault
+and site is instantly there. (The `nzip where` breadcrumb registry is local, so it only knows sites
+pushed from this machine.)
+
 `nzip` is self-hosted. The server URL is supplied by the operator; there is no bundled public
-service. Use the same URL you set as `vars.PUBLIC_BASE` in your Wrangler config.
+service — use the same URL you set as `vars.PUBLIC_BASE` in your Wrangler config. Standing up that
+server is the one-time setup below.
 
 <details>
 <summary><b>Self-hosting: one-time Cloudflare setup</b></summary>
