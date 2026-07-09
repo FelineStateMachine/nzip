@@ -3,6 +3,10 @@ export interface Env {
   DB: D1Database;
   NZIP_TOKEN: string;
   PUBLIC_BASE: string;
+  // Per-IP limiter for bare-address hits — throttles address enumeration.
+  RL_ENUM: RateLimit;
+  // Per-IP+address limiter for the unlock endpoint — throttles password guessing.
+  RL_UNLOCK: RateLimit;
 }
 
 export function json<T = unknown>(body: T, status = 200, headers: HeadersInit = {}): Response {
