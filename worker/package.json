@@ -1,0 +1,16 @@
+{
+  "name": "nzip-worker",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:local": "wrangler dev --config wrangler.local.jsonc",
+    "deploy": "wrangler deploy",
+    "deploy:local": "wrangler deploy --config wrangler.local.jsonc",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260708.1",
+    "typescript": "^5.8.0",
+    "wrangler": "^4.0.0"
+  }
+}

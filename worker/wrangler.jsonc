@@ -1,0 +1,28 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "nzip",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-06-01",
+	"r2_buckets": [
+		{
+			"binding": "CONTENT",
+			"bucket_name": "nzip-content"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "nzip",
+			"database_id": "00000000-0000-0000-0000-000000000000"
+		}
+	],
+	"triggers": {
+		"crons": [
+			"0 4 * * *"
+		]
+	},
+	"vars": {
+		"PUBLIC_BASE": "http://localhost:8787"
+	}
+	// Secrets (wrangler secret put): NZIP_TOKEN
+}
