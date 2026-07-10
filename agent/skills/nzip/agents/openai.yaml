@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nzip"
+  short_description: "Host and manage nzip shared HTML"
+  default_prompt: "Use $nzip to configure or diagnose nzip publishing."

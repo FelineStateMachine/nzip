@@ -1,0 +1,112 @@
+[
+  {
+    "name": "status",
+    "description": "Check the configured nzip server and vault overview.",
+    "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+  },
+  {
+    "name": "list_vaults",
+    "description": "List nzip vaults and the selected default vault.",
+    "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+  },
+  {
+    "name": "list_sites",
+    "description": "List hosted nzip sites, optionally in one vault.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "vault": { "type": "string", "description": "Optional vault name." } },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "inspect_site",
+    "description": "Inspect one hosted nzip site by address or alias.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string", "description": "Address, vault:alias, or bare alias." }
+      },
+      "required": ["target"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "host_html",
+    "description": "Host a standalone HTML document with nzip and return its canonical site identity.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "html": { "type": "string", "description": "Complete non-empty HTML document." },
+        "target": { "type": "string", "description": "Optional address or alias target." },
+        "ttl": {
+          "type": "string",
+          "description": "Optional nzip TTL, such as 14d, 30d, or forever."
+        },
+        "password": { "type": "string", "description": "Optional password protection." }
+      },
+      "required": ["html"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "configure_site",
+    "description": "Change a site's TTL or password protection.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string", "description": "Address, vault:alias, or bare alias." },
+        "ttl": { "type": "string", "description": "nzip TTL, such as 14d, 30d, or forever." },
+        "password": {
+          "type": ["string", "null"],
+          "description": "Password to set, or null to remove it."
+        }
+      },
+      "required": ["target"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "download_site",
+    "description": "Recover the current source bundle of a hosted site into a local directory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string", "description": "Address, vault:alias, or bare alias." },
+        "directory": { "type": "string", "description": "Optional destination directory." },
+        "overwrite": { "type": "boolean", "description": "Allow an existing destination." }
+      },
+      "required": ["target"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "restore_site",
+    "description": "Restore a site to a prior nzip push.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string", "description": "Address, vault:alias, or bare alias." },
+        "to": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional push sequence to restore."
+        }
+      },
+      "required": ["target"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "delete_site",
+    "description": "Permanently delete a hosted site after explicit confirmation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string", "description": "Address, vault:alias, or bare alias." },
+        "confirm": { "type": "boolean", "description": "Must be true to delete." }
+      },
+      "required": ["target", "confirm"],
+      "additionalProperties": false
+    }
+  }
+]

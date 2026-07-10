@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "nzip": {
+      "command": "deno",
+      "args": [
+        "run",
+        "--quiet",
+        "--allow-run=nzip",
+        "--allow-read",
+        "--allow-write",
+        "--allow-env",
+        "${CLAUDE_PLUGIN_ROOT}/server.ts"
+      ]
+    }
+  }
+}

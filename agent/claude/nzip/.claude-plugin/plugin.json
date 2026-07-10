@@ -1,0 +1,12 @@
+{
+  "name": "nzip",
+  "displayName": "nzip",
+  "version": "0.1.0",
+  "description": "Host and manage nzip HTML shares.",
+  "author": {
+    "name": "FelineStateMachine"
+  },
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

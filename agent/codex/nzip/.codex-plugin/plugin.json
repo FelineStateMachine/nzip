@@ -1,0 +1,19 @@
+{
+  "name": "nzip",
+  "version": "0.1.0",
+  "description": "Host and manage nzip HTML shares from Codex.",
+  "author": {
+    "name": "FelineStateMachine"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "nzip",
+    "shortDescription": "Host and manage HTML shares.",
+    "longDescription": "Adds nzip site lifecycle tools and a setup, use, and doctor skill.",
+    "developerName": "FelineStateMachine",
+    "category": "Productivity",
+    "capabilities": ["Write"],
+    "defaultPrompt": "Use nzip to host this HTML page."
+  },
+  "mcpServers": "./.mcp.json"
+}
