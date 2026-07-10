@@ -8,6 +8,7 @@ import type {
   PrepareResponse,
   SiteDetail,
   SiteInfo,
+  SourceResponse,
   StatusResponse,
   Target,
   VaultInfo,
@@ -37,6 +38,22 @@ export class ApiClient {
     return JSON.parse(text) as T;
   }
 
+  private async requestBytes(method: string, path: string): Promise<Uint8Array> {
+    const res = await fetch(`${this.config.server}${path}`, {
+      method,
+      headers: { authorization: `Bearer ${this.config.token}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let message = text;
+      try {
+        message = (JSON.parse(text) as ApiError).error;
+      } catch { /* not json */ }
+      throw new Error(`${res.status}: ${message}`);
+    }
+    return new Uint8Array(await res.arrayBuffer());
+  }
+
   status(): Promise<StatusResponse> {
     return this.request("GET", "/api/status");
   }
@@ -60,6 +77,17 @@ export class ApiClient {
 
   siteDetail(target: string): Promise<SiteDetail> {
     return this.request("GET", `/api/sites/${encodeURIComponent(target)}`);
+  }
+
+  source(target: string): Promise<SourceResponse> {
+    return this.request("GET", `/api/sites/${encodeURIComponent(target)}/source`);
+  }
+
+  downloadSourceBlob(target: string, hash: string): Promise<Uint8Array> {
+    return this.requestBytes(
+      "GET",
+      `/api/sites/${encodeURIComponent(target)}/source/${encodeURIComponent(hash)}`,
+    );
   }
 
   patchSite(

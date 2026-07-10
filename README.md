@@ -5,7 +5,8 @@
 _A personal share tool. Deno CLI → Cloudflare Worker → R2 + D1. No daemon, no build step, no
 redeploys._
 
-[![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli) · [args.io/cat/nzip](https://args.io/cat/nzip)
+[![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli) ·
+[args.io/cat/nzip](https://args.io/cat/nzip)
 
 ```console
 $ nzip push ./demo work:demo --ttl 30d
@@ -52,9 +53,9 @@ three target forms:
 - **Single-user by design.** One bearer token, stored as a Worker secret and in
   `~/.config/nzip/config.json` (mode 0600).
 - **Locates itself.** `nzip where <target>` prints the local directory this machine pushed a site
-  from. A breadcrumb registry (`~/.config/nzip/paths.json`) records the source path on every push and
-  self-cleans: expired entries drop on write, `rm` forgets its entry, and `ls` reconciles against the
-  live set. Use it as `cd "$(nzip where personal:plan)"`.
+  from. A breadcrumb registry (`~/.config/nzip/paths.json`) records the source path on every push
+  and self-cleans: expired entries drop on write, `rm` forgets its entry, and `ls` reconciles
+  against the live set. Use it as `cd "$(nzip where personal:plan)"`.
 - **Vault guardrail.** An optional `"allowVaults": ["home"]` in `config.json` restricts which vaults
   this install may target by name. Pushes or aliases outside the list are refused before any upload,
   so a home-project agent can't drop a doc into a vault that sits adjacent to what you share
@@ -67,6 +68,7 @@ nzip auth [--server URL] [--token T]     authenticate and save config
 nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0–0xf)
 nzip vault ls | default <name>           list vaults / set the default
 nzip push <dir|file> [target] [--ttl 14d|30d|forever]
+nzip download <target> [dir] [--overwrite]  recover the current hosted bundle
 nzip share <target> [--ttl …] [--password PW | --no-password]
 nzip ls [vault]                          list sites
 nzip where <target>                      print the local dir this machine pushed from
@@ -79,6 +81,12 @@ Pushing a single `page.html` stores it as the site's `index.html`. Directory pus
 and `node_modules`, and honor a `.nzipignore` (one glob per line). Single-file sites serve directly
 at the bare address (`/2a3f`); multi-file bundles redirect to `/2a3f/` so relative asset URLs
 resolve.
+
+`nzip download work:demo ./recovered-demo` recovers the exact current bundle from the authenticated
+server when the original local directory is unavailable. It refuses non-empty destinations unless
+`--overwrite` is passed, and verifies every downloaded file against the hosted manifest. It can only
+restore uploaded files—not dotfiles, `.nzipignore`, or other local project metadata excluded from a
+push.
 
 ## Architecture
 

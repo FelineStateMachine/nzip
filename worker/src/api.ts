@@ -3,6 +3,7 @@ import {
   formatAddress,
   isValidName,
   manifestHash,
+  parseManifest,
   parseTarget,
   sha256hex,
   VAULT_SLOTS,
@@ -16,6 +17,7 @@ import type {
   PrepareRequest,
   PrepareResponse,
   RevertRequest,
+  SourceResponse,
   StatusResponse,
   Target,
 } from "../../shared/mod.ts";
@@ -172,6 +174,15 @@ async function handleStatus(env: Env): Promise<Response> {
   });
 }
 
+/** Load the current source manifest, refusing content that is no longer hosted. */
+async function sourceManifest(env: Env, site: SiteRow): Promise<Manifest | Response> {
+  const now = Math.floor(Date.now() / 1000);
+  if (site.expires_at !== null && site.expires_at < now) return err("site expired", 410);
+  const object = await env.CONTENT.get(`manifest/${site.current_manifest}`);
+  if (!object) return err("source manifest not found", 404);
+  return parseManifest(new Uint8Array(await object.arrayBuffer()));
+}
+
 export async function api(req: Request, env: Env, url: URL): Promise<Response> {
   const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
   const method = req.method;
@@ -222,10 +233,37 @@ export async function api(req: Request, env: Env, url: URL): Promise<Response> {
       return json(rows.map((r) => siteRowToInfo(env, r, r.vault_name)));
     }
 
-    // sites/{target}[/revert]
+    // sites/{target}[/source[/blob-hash]|revert]
     if (parts[1] === "sites" && parts.length >= 3) {
       const site = await resolvePathTarget(env, parts[2]);
       if (!site) return err("site not found", 404);
+
+      if (parts.length === 4 && parts[3] === "source" && method === "GET") {
+        const manifest = await sourceManifest(env, site);
+        if (manifest instanceof Response) return manifest;
+        return json<SourceResponse>({
+          address: formatAddress(site.address),
+          manifestHash: site.current_manifest,
+          manifest,
+        });
+      }
+      if (parts.length === 5 && parts[3] === "source" && method === "GET") {
+        const hash = parts[4];
+        if (!HEX64.test(hash)) return err("invalid blob hash", 400);
+        const manifest = await sourceManifest(env, site);
+        if (manifest instanceof Response) return manifest;
+        const entry = Object.values(manifest.files).find((file) => file.h === hash);
+        if (!entry) return err("source blob not found", 404);
+        const blob = await env.CONTENT.get(`blob/${hash}`);
+        if (!blob) return err("source blob not found", 404);
+        return new Response(blob.body, {
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-length": String(entry.s),
+            "cache-control": "no-store",
+          },
+        });
+      }
 
       if (parts.length === 3 && method === "GET") {
         return json(await siteRowToDetail(env, site));

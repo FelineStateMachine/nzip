@@ -83,6 +83,13 @@ export interface SiteDetail extends SiteInfo {
   history: PushInfo[];
 }
 
+/** Current uploaded bundle for a site, returned only by the authenticated recovery API. */
+export interface SourceResponse {
+  address: string;
+  manifestHash: string;
+  manifest: Manifest;
+}
+
 /** A registered vault: its slot, name, and current site count. */
 export interface VaultInfo {
   slot: number;

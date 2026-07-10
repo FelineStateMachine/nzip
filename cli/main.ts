@@ -20,6 +20,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { cmdAuth } from "./commands/auth.ts";
 import { cmdPush } from "./commands/push.ts";
+import { cmdDownload } from "./commands/download.ts";
 import { cmdLs, cmdRevert, cmdRm, cmdShare, cmdStatus } from "./commands/sites.ts";
 import { cmdVault } from "./commands/vault.ts";
 import { cmdWhere } from "./commands/where.ts";
@@ -34,6 +35,7 @@ usage:
   nzip vault ls                            list vaults
   nzip vault default <name>                set default vault
   nzip push <dir|file> [target] [--ttl 14d|30d|forever]
+  nzip download <target> [dir] [--overwrite]
   nzip share <target> [--ttl ...] [--password PW | --no-password]
                                            resolve + print url; set ttl/password
   nzip ls [vault]                          list sites
@@ -54,7 +56,7 @@ to named vaults — pushes/aliases outside the list are refused (agent guardrail
 async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
     string: ["ttl", "to", "slot", "server", "token", "password"],
-    boolean: ["yes", "list", "help", "no-password", "json"],
+    boolean: ["yes", "list", "help", "no-password", "overwrite", "json"],
     alias: { h: "help", y: "yes" },
   });
   setJsonMode(args.json);
@@ -74,6 +76,8 @@ async function main(): Promise<void> {
   switch (command) {
     case "push":
       return await cmdPush(config, rest[0], rest[1], args.ttl);
+    case "download":
+      return await cmdDownload(config, rest[0], rest[1], args.overwrite);
     case "share":
       return await cmdShare(config, rest[0], args.ttl, args.password, args["no-password"]);
     case "ls":
