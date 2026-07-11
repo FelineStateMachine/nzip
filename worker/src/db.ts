@@ -76,6 +76,8 @@ export interface CommitParams {
   alias: string | null;
   manifestHash: string;
   expiresAt: number | null;
+  /** undefined preserves an existing password; null explicitly clears it */
+  passwordHash?: string | null;
   isNew: boolean;
   note?: string;
 }
@@ -87,16 +89,33 @@ export async function commitSite(env: Env, p: CommitParams): Promise<number> {
     .bind(p.address).first<{ s: number }>();
   const seq = (seqRow?.s ?? 0) + 1;
 
+  const siteCommit = p.isNew
+    ? env.DB.prepare(
+      `INSERT INTO sites (
+         address, vault_slot, alias, current_manifest, created_at, updated_at, expires_at, password_hash
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      p.address,
+      p.vaultSlot,
+      p.alias,
+      p.manifestHash,
+      now,
+      now,
+      p.expiresAt,
+      p.passwordHash ?? null,
+    )
+    : p.passwordHash === undefined
+    ? env.DB.prepare(
+      `UPDATE sites SET current_manifest = ?, updated_at = ?, expires_at = ?, alias = COALESCE(?, alias)
+       WHERE address = ?`,
+    ).bind(p.manifestHash, now, p.expiresAt, p.alias, p.address)
+    : env.DB.prepare(
+      `UPDATE sites SET current_manifest = ?, updated_at = ?, expires_at = ?,
+         alias = COALESCE(?, alias), password_hash = ? WHERE address = ?`,
+    ).bind(p.manifestHash, now, p.expiresAt, p.alias, p.passwordHash, p.address);
+
   const statements = [
-    p.isNew
-      ? env.DB.prepare(
-        `INSERT INTO sites (address, vault_slot, alias, current_manifest, created_at, updated_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(p.address, p.vaultSlot, p.alias, p.manifestHash, now, now, p.expiresAt)
-      : env.DB.prepare(
-        `UPDATE sites SET current_manifest = ?, updated_at = ?, expires_at = ?, alias = COALESCE(?, alias)
-         WHERE address = ?`,
-      ).bind(p.manifestHash, now, p.expiresAt, p.alias, p.address),
+    siteCommit,
     env.DB.prepare(
       "INSERT INTO pushes (address, seq, manifest_hash, pushed_at, note) VALUES (?, ?, ?, ?, ?)",
     ).bind(p.address, seq, p.manifestHash, now, p.note ?? null),

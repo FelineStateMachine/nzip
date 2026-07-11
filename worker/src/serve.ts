@@ -19,12 +19,9 @@ const escapeHtml = (s: string): string =>
 // hostname with the nzip wordmark; the coral z is the product's small visual mark.
 function landingPage(env: Env): string {
   const host = new URL(env.PUBLIC_BASE).host;
-  const dot = host.indexOf(".");
-  const head = escapeHtml(dot === -1 ? host : host.slice(0, dot));
-  const tail = dot === -1 ? "" : escapeHtml(host.slice(dot));
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(host)}</title>
 <style>body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;margin:0;min-height:100dvh;display:flex;flex-direction:column}main{flex:1;display:grid;place-items:center;padding:24px;text-align:center}.landing{display:grid;gap:24px;justify-items:center}.wordmark{color:#f2e8d4;font-size:clamp(40px,10vw,72px);font-weight:700;letter-spacing:-.18em;line-height:.8}.wordmark .z{color:#ff6b4a}.host{font-size:clamp(14px,2vw,18px);letter-spacing:-.06em}.host b{color:#d99a5b}footer{text-align:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}a{color:#6b6355;font-size:12px;text-decoration:underline}a:hover{color:#d99a5b}</style>
-<main><div class="landing"><div class="wordmark" aria-label="nzip">n<span class="z">z</span>ip</div><div class="host">${head}${tail ? `<b>${tail}</b>` : ""}</div></div></main><footer><a href="https://args.io/cat/nzip">args</a></footer>`;
+<main><div class="landing"><div class="wordmark" aria-label="nzip">n<span class="z">z</span>ip</div></div></main><footer><a href="https://args.io/cat/nzip">args</a></footer>`;
 }
 
 function htmlResponse(body: string, status: number, headers: HeadersInit = {}): Response {
@@ -35,9 +32,9 @@ function htmlResponse(body: string, status: number, headers: HeadersInit = {}): 
 }
 
 function unlockForm(address: string, error?: string): string {
-  return `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>unlock — nzip</title>
-<style>body{background:#121110;color:#d6cfc2;font-family:ui-monospace,monospace;display:grid;place-items:center;height:100vh;margin:0}form{text-align:center}b{color:#ffb347;font-size:24px;display:block;margin-bottom:16px}input{background:#1a1815;border:1px solid #2e2a24;color:#d6cfc2;padding:10px 14px;font:inherit;outline:none}input:focus{border-color:#ffb347}button{background:#ffb347;border:0;color:#121110;padding:10px 18px;font:inherit;font-weight:700;cursor:pointer}.e{color:#f7768e;margin-top:12px;font-size:13px}</style>
-<form method="post" action="/${address}/__unlock"><b>&#128274; ${address}</b><input type="password" name="password" placeholder="password" autofocus autocomplete="current-password"><button>unlock</button>${
+  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex"><title>unlock — nzip</title>
+<style>*{box-sizing:border-box}body{background:#121110;color:#d6cfc2;font-family:ui-monospace,monospace;display:grid;place-items:center;min-height:100vh;min-height:100dvh;margin:0;padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}form{width:min(100%,420px);text-align:center}b{color:#ffb347;font-size:24px;display:block;margin-bottom:20px}.field{display:flex;width:100%}input{background:#1a1815;border:1px solid #2e2a24;color:#d6cfc2;min-width:0;flex:1;padding:12px 14px;font:inherit;font-size:16px;line-height:20px;outline:none;border-radius:0}input:focus{border-color:#ffb347}button{background:#ffb347;border:0;color:#121110;min-height:46px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;border-radius:0}.e{color:#f7768e;margin-top:12px;font-size:13px}@media(max-width:360px){.field{display:grid;gap:10px}button{width:100%}}</style>
+<form method="post" action="/${address}/__unlock"><b>&#128274; ${address}</b><div class="field"><input type="password" name="password" aria-label="password" placeholder="password" autofocus autocomplete="current-password"><button>unlock</button></div>${
     error ? `<div class="e">${error}</div>` : ""
   }</form>`;
 }

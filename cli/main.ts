@@ -2,7 +2,7 @@
 /**
  * `nzip` — push a directory of HTML from the terminal and get a four-character
  * URL back. This is the CLI entrypoint; it parses argv and dispatches to the
- * command handlers (`auth`, `vault`, `push`, `share`, `ls`, `where`, `rm`,
+ * command handlers (`auth`, `vault`, `push`, `site`, `ls`, `where`, `rm`,
  * `status`, `revert`).
  *
  * Install and run it as a command rather than importing it:
@@ -21,7 +21,7 @@ import { parseArgs } from "@std/cli/parse-args";
 import { cmdAuth } from "./commands/auth.ts";
 import { cmdPush } from "./commands/push.ts";
 import { cmdDownload } from "./commands/download.ts";
-import { cmdLs, cmdRevert, cmdRm, cmdShare, cmdStatus } from "./commands/sites.ts";
+import { cmdLs, cmdRevert, cmdRm, cmdSite, cmdStatus } from "./commands/sites.ts";
 import { cmdVault } from "./commands/vault.ts";
 import { cmdWhere } from "./commands/where.ts";
 import { requireConfig } from "./lib/config.ts";
@@ -34,10 +34,11 @@ usage:
   nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0-0xf)
   nzip vault ls                            list vaults
   nzip vault default <name>                set default vault
-  nzip push <dir|file> [target] [--ttl 14d|30d|forever]
+  nzip push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
   nzip download <target> [dir] [--overwrite]
-  nzip share <target> [--ttl ...] [--password PW | --no-password]
-                                           resolve + print url; set ttl/password
+  nzip site <target> [--ttl ...] [--password PW | --no-password]
+                                           inspect or update ttl/password
+  nzip share <target> [...]                 deprecated alias for nzip site
   nzip ls [vault]                          list sites
   nzip where <target>                      print the local dir this machine pushed from
   nzip rm <target> [--yes]                 delete a site
@@ -75,11 +76,19 @@ async function main(): Promise<void> {
 
   switch (command) {
     case "push":
-      return await cmdPush(config, rest[0], rest[1], args.ttl);
+      return await cmdPush(
+        config,
+        rest[0],
+        rest[1],
+        args.ttl,
+        args.password,
+        args["no-password"],
+      );
     case "download":
       return await cmdDownload(config, rest[0], rest[1], args.overwrite);
-    case "share":
-      return await cmdShare(config, rest[0], args.ttl, args.password, args["no-password"]);
+    case "site":
+    case "share": // compatibility alias for the former site-management command
+      return await cmdSite(config, rest[0], args.ttl, args.password, args["no-password"]);
     case "ls":
       return await cmdLs(config, rest[0]);
     case "where":

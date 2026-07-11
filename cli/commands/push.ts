@@ -11,8 +11,17 @@ export async function cmdPush(
   path: string | undefined,
   targetRaw: string | undefined,
   ttlRaw: string | undefined,
+  password: string | undefined,
+  noPassword: boolean,
 ): Promise<void> {
-  if (!path) fail("usage: nzip push <dir|file> [target] [--ttl 14d|forever]");
+  if (!path) {
+    fail(
+      "usage: nzip push <dir|file> [target] [--ttl 14d|forever] [--password PW | --no-password]",
+    );
+  }
+  if (password !== undefined && noPassword) {
+    fail("choose either --password or --no-password, not both");
+  }
   const api = new ApiClient(config);
 
   // Resolve (and vault-guard) the target up front — before any bundling or
@@ -64,7 +73,13 @@ export async function cmdPush(
   }
 
   const ttl = ttlRaw === undefined ? undefined : parseTtl(ttlRaw);
-  const res = await api.commit({ manifest: bundle.manifest, target, ttl });
+  const passwordPolicy = noPassword ? null : password;
+  const res = await api.commit({
+    manifest: bundle.manifest,
+    target,
+    ttl,
+    password: passwordPolicy,
+  });
 
   // Breadcrumb: remember which directory this machine pushed from so
   // `nzip where` can find it later. Best-effort — never fail a push over it.

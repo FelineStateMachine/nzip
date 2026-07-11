@@ -7,7 +7,7 @@ export interface Config {
   defaultVault?: string;
   /**
    * Optional allow-list of vault names this config may target by name. When
-   * present, any push/share/rm/revert/default that names a vault outside the
+   * present, any push/site/rm/revert/default that names a vault outside the
    * list is refused — so a restricted agent can't drop content into a vault
    * that sits adjacent to things you share professionally. Absent = no limit;
    * empty array = no named vault is permitted.

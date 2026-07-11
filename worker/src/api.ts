@@ -53,6 +53,14 @@ function ttlToExpiry(ttl: number | "forever" | undefined): number | null {
   return Math.floor(Date.now() / 1000) + Math.round(days * 86400);
 }
 
+async function passwordHashFor(password: unknown): Promise<string | null | undefined> {
+  if (password === undefined || password === null) return password;
+  if (typeof password !== "string" || password.length < 4) {
+    throw new Error("password must be at least 4 characters");
+  }
+  return await hashPassword(password);
+}
+
 /** Which blob hashes referenced by the manifest are absent from R2? */
 async function missingBlobs(env: Env, manifest: Manifest): Promise<string[]> {
   const hashes = [...new Set(Object.values(manifest.files).map((f) => f.h))];
@@ -85,6 +93,7 @@ async function handleBlobPut(req: Request, env: Env, hash: string): Promise<Resp
 
 async function handleCommit(req: Request, env: Env): Promise<Response> {
   const body = await req.json<CommitRequest>();
+  const passwordHash = await passwordHashFor(body.password);
   const bytes = canonicalManifestBytes(body.manifest);
   const hash = await sha256hex(bytes);
 
@@ -137,6 +146,7 @@ async function handleCommit(req: Request, env: Env): Promise<Response> {
     alias,
     manifestHash: hash,
     expiresAt,
+    passwordHash,
     isNew,
   });
 
@@ -167,7 +177,7 @@ async function handleStatus(env: Env): Promise<Response> {
   const soon = Math.floor(Date.now() / 1000) + 48 * 3600;
   return json<StatusResponse>({
     ok: true,
-    version: "0.1.0",
+    version: "0.2.0",
     vaults,
     siteCount: sites.length,
     expiringSoon: sites.filter((s) => s.expires_at !== null && s.expires_at < soon).length,
@@ -275,18 +285,23 @@ export async function api(req: Request, env: Env, url: URL): Promise<Response> {
       if (parts.length === 3 && method === "PATCH") {
         const body = await req.json<PatchSiteRequest>();
         const now = Math.floor(Date.now() / 1000);
-        if (body.ttl !== undefined) {
-          const expiresAt = ttlToExpiry(body.ttl);
-          await env.DB.prepare("UPDATE sites SET expires_at = ?, updated_at = ? WHERE address = ?")
-            .bind(expiresAt, now, site.address).run();
+        const expiresAt = body.ttl === undefined ? undefined : ttlToExpiry(body.ttl);
+        const passwordHash = await passwordHashFor(body.password);
+        const updates: string[] = [];
+        const values: (string | number | null)[] = [];
+        if (expiresAt !== undefined) {
+          updates.push("expires_at = ?");
+          values.push(expiresAt);
         }
-        if (body.password !== undefined) {
-          if (body.password !== null && body.password.length < 4) {
-            return err("password must be at least 4 characters", 400);
-          }
-          const hash = body.password === null ? null : await hashPassword(body.password);
-          await env.DB.prepare("UPDATE sites SET password_hash = ?, updated_at = ? WHERE address = ?")
-            .bind(hash, now, site.address).run();
+        if (passwordHash !== undefined) {
+          updates.push("password_hash = ?");
+          values.push(passwordHash);
+        }
+        if (updates.length > 0) {
+          updates.push("updated_at = ?");
+          values.push(now, site.address);
+          await env.DB.prepare(`UPDATE sites SET ${updates.join(", ")} WHERE address = ?`)
+            .bind(...values).run();
         }
         const updated = await getSiteByAddress(env, site.address);
         return json(await siteRowToDetail(env, updated!));

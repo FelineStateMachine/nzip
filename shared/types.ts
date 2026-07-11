@@ -36,12 +36,14 @@ export interface PrepareResponse {
   missing: string[];
 }
 
-/** Body of `POST /api/push/commit`: finalize a push at `target` with an optional TTL. */
+/** Body of `POST /api/push/commit`: atomically publish content and its access policy. */
 export interface CommitRequest {
   manifest: Manifest;
   target: Target;
   /** days until expiry; "forever" = no expiry; omitted = server default (14) */
   ttl?: number | "forever";
+  /** set a password (string), clear it (null), or preserve it on an existing site (undefined) */
+  password?: string | null;
 }
 
 /** Reply to `commit`: the allocated address and the live URL for the new push. */

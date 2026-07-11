@@ -19,7 +19,7 @@ deno add jsr:@nzip/shared
 ## Use
 
 ```ts
-import { canonicalManifestBytes, manifestHash, parseTarget, type Manifest } from "@nzip/shared";
+import { canonicalManifestBytes, type Manifest, manifestHash, parseTarget } from "@nzip/shared";
 
 const manifest: Manifest = {
   v: 1,
@@ -32,9 +32,9 @@ const manifest: Manifest = {
 const hash = await manifestHash(manifest);
 const bytes = canonicalManifestBytes(manifest);
 
-parseTarget("2a3f");        // { kind: "address", address: 10815 }
-parseTarget("work:demo");   // { kind: "vaultAlias", vault: "work", alias: "demo" }
-parseTarget("demo");        // { kind: "alias", alias: "demo" }
+parseTarget("2a3f"); // { kind: "address", address: 10815 }
+parseTarget("work:demo"); // { kind: "vaultAlias", vault: "work", alias: "demo" }
+parseTarget("demo"); // { kind: "alias", alias: "demo" }
 ```
 
 MIT licensed.

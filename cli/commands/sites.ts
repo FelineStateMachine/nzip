@@ -1,4 +1,4 @@
-// share, ls, rm, status, revert — the site-management commands.
+// site, ls, rm, status, revert — the site-management commands.
 
 import { ApiClient, resolveCliTarget } from "../lib/api.ts";
 import type { Config } from "../lib/config.ts";
@@ -26,7 +26,7 @@ function targetOrFail(raw: string | undefined, config: Config, usage: string): s
   }
 }
 
-export async function cmdShare(
+export async function cmdSite(
   config: Config,
   raw: string | undefined,
   ttlRaw: string | undefined,
@@ -36,8 +36,11 @@ export async function cmdShare(
   const target = targetOrFail(
     raw,
     config,
-    "usage: nzip share <target> [--ttl 14d|forever] [--password PW | --no-password]",
+    "usage: nzip site <target> [--ttl 14d|forever] [--password PW | --no-password]",
   );
+  if (password !== undefined && noPassword) {
+    fail("choose either --password or --no-password, not both");
+  }
   const api = new ApiClient(config);
   const patch: { ttl?: number | "forever"; password?: string | null } = {};
   if (ttlRaw !== undefined) patch.ttl = parseTtl(ttlRaw);

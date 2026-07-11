@@ -26,7 +26,8 @@ deno run -A jsr:@nzip/cli --help
 ```sh
 nzip auth --server https://share.example.com   # authenticate (prompts for the token)
 nzip vault add work                            # register a named vault
-nzip push ./site work:demo --ttl 30d           # → https://share.example.com/12d8
+nzip push ./site work:demo --ttl 30d --password secret
+                                                # → https://share.example.com/12d8
 ```
 
 Config is saved to `~/.config/nzip/config.json` (mode 0600), so later commands just work. On a
@@ -39,15 +40,20 @@ and site is already there.
 nzip auth [--server URL] [--token T]     authenticate and save config
 nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0–0xf)
 nzip vault ls | default <name>           list vaults / set the default
-nzip push <dir|file> [target] [--ttl 14d|30d|forever]
+nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
 nzip download <target> [dir] [--overwrite]
-nzip share <target> [--ttl …] [--password PW | --no-password]
+nzip site <target> [--ttl …] [--password PW | --no-password]
 nzip ls [vault]                          list sites
 nzip where <target>                      print the local dir this machine pushed from
 nzip rm <target> [--yes]                 delete a site
 nzip status                              server + vault overview
 nzip revert <target> [--to N] [--list]   repoint to a previous push
 ```
+
+Password and TTL are committed with the content. On a new site, omitting `--password` creates an
+unprotected site; on an existing target, omission preserves its current password. Pass
+`--no-password` to clear protection explicitly. The former `nzip share` command remains available as
+a compatibility alias for `nzip site`.
 
 `nzip download work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty
 directory. It uses the configured bearer token, verifies file hashes, and never exposes source via

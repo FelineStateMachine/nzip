@@ -2,10 +2,12 @@
 
 **Push a directory of HTML from the terminal. Get a four-character URL back.**
 
-_A personal share tool. Deno CLI → Cloudflare Worker → R2 + D1. No daemon, no build step, no
-redeploys._
+_Deno CLI → Cloudflare Worker → R2 + D1. Zero-cost static site hosting with optional expiration
+and/or password protection._
 
-[![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli) ·
+[![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli)
+
+[github.com/FelineStateMachine/nzip](https://github.com/FelineStateMachine/nzip) ·
 [args.io/cat/nzip](https://args.io/cat/nzip)
 
 ```console
@@ -48,8 +50,9 @@ three target forms:
   shares answer `410 Gone`; a daily cron sweeps them and garbage-collects unreferenced content.
 - **Revertible.** The last 10 pushes per site are kept. `nzip revert` repoints the address at any of
   them, and the revert itself is recorded as a push.
-- **Password-protectable.** `nzip share work:demo --password …` gates the site behind an unlock form
-  (PBKDF2 hashing, signed per-site cookie, 7 days).
+- **Password-protectable.** `nzip push ./demo work:demo --password …` publishes the content and
+  password policy atomically, then gates the site behind an unlock form (PBKDF2 hashing, signed
+  per-site cookie, 7 days). Use `nzip site` to change protection later.
 - **Single-user by design.** One bearer token, stored as a Worker secret and in
   `~/.config/nzip/config.json` (mode 0600).
 - **Locates itself.** `nzip where <target>` prints the local directory this machine pushed a site
@@ -67,15 +70,20 @@ three target forms:
 nzip auth [--server URL] [--token T]     authenticate and save config
 nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0–0xf)
 nzip vault ls | default <name>           list vaults / set the default
-nzip push <dir|file> [target] [--ttl 14d|30d|forever]
+nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
 nzip download <target> [dir] [--overwrite]  recover the current hosted bundle
-nzip share <target> [--ttl …] [--password PW | --no-password]
+nzip site <target> [--ttl …] [--password PW | --no-password]
 nzip ls [vault]                          list sites
 nzip where <target>                      print the local dir this machine pushed from
 nzip rm <target> [--yes]                 delete a site
 nzip status                              server + vault overview
 nzip revert <target> [--to N] [--list]   repoint to a previous push
 ```
+
+Password and TTL are committed with the content. On a new site, omitting `--password` creates an
+unprotected site; on an existing target, omission preserves its current password. Pass
+`--no-password` to clear protection explicitly. The former `nzip share` command remains available
+as a compatibility alias for `nzip site`.
 
 Pushing a single `page.html` stores it as the site's `index.html`. Directory pushes skip dotfiles
 and `node_modules`, and honor a `.nzipignore` (one glob per line). Single-file sites serve directly
@@ -104,7 +112,8 @@ A push is a stateless three-step protocol, and the manifest itself is the state:
 2. `PUT /api/blob/{sha256}`: upload only those, one per request, 6 at a time; the server re-hashes
    and rejects mismatches
 3. `POST /api/push/commit`: the server re-verifies every blob exists, then commits atomically,
-   resolving or allocating the address, repointing the site, and appending history
+   resolving or allocating the address, applying TTL/password policy, repointing the site, and
+   appending history
 
 Serving is one D1 read (address → manifest, expiry, password) and two R2 reads, with `ETag`
 revalidation and a 60-second cache. Metadata lives in three tables:
