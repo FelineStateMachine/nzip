@@ -1,6 +1,7 @@
 import { parseAddress, parseManifest } from "../../shared/mod.ts";
 import { getSiteByAddress, type SiteRow } from "./db.ts";
 import type { Env } from "./env.ts";
+import { FAVICON_PNG } from "./favicon.ts";
 import { hasValidUnlockCookie, makeUnlockCookie, verifyPassword } from "./password.ts";
 
 const GONE_PAGE = `<!doctype html><meta charset="utf-8"><title>expired — nzip</title>
@@ -61,7 +62,14 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
   const path = url.pathname;
 
   if (path === "/") return htmlResponse(landingPage(env), 200);
-  if (path === "/favicon.ico") return new Response(null, { status: 204 });
+  // Served for the browsers' default probe; pushed sites under /{4hex}/ still
+  // control their own icons through their HTML. PNG bytes at the .ico path are
+  // accepted everywhere.
+  if (path === "/favicon.ico") {
+    return new Response(FAVICON_PNG, {
+      headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" },
+    });
+  }
   if (path === "/robots.txt") {
     return new Response("User-agent: *\nAllow: /\n", {
       headers: { "content-type": "text/plain" },

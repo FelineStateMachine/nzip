@@ -104,3 +104,16 @@ test("missing index path still returns not found", async () => {
 
   assert.equal(response.status, 404);
 });
+
+test("favicon serves the wordmark PNG with a cacheable response", async () => {
+  const url = new URL("https://n.zip/favicon.ico");
+  const response = await serve(new Request(url), envFor({}), url);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/png");
+  assert.equal(response.headers.get("cache-control"), "public, max-age=86400");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  // PNG signature: the embedded icon decoded from base64 intact.
+  assert.deepEqual([...bytes.slice(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.ok(bytes.length > 500);
+});
