@@ -41,7 +41,7 @@ nzip auth [--server URL] [--token T]     authenticate and save config
 nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0–0xf)
 nzip vault ls | default <name>           list vaults / set the default
 nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
-nzip download <target> [dir] [--overwrite]
+nzip cp <target> [dir] [--overwrite]
 nzip site <target> [--ttl …] [--password PW | --no-password]
 nzip ls [vault]                          list sites
 nzip where <target>                      print the local dir this machine pushed from
@@ -55,10 +55,10 @@ unprotected site; on an existing target, omission preserves its current password
 `--no-password` to clear protection explicitly. The former `nzip share` command remains available as
 a compatibility alias for `nzip site`.
 
-`nzip download work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty
-directory. It uses the configured bearer token, verifies file hashes, and never exposes source via
-the public page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were
-never stored.
+`nzip cp work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty directory.
+It uses the configured bearer token, verifies file hashes, and never exposes source via the public
+page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were never
+stored. The former `nzip download` command remains available as a compatibility alias.
 
 See the [project README](https://github.com/FelineStateMachine/nzip) for how addresses work,
 self-hosting setup, and architecture. MIT licensed.

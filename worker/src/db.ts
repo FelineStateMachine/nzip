@@ -19,6 +19,7 @@ export interface SiteRow {
   updated_at: number;
   expires_at: number | null;
   password_hash: string | null;
+  auth_version: number;
 }
 
 export interface VaultRow {
@@ -111,7 +112,8 @@ export async function commitSite(env: Env, p: CommitParams): Promise<number> {
     ).bind(p.manifestHash, now, p.expiresAt, p.alias, p.address)
     : env.DB.prepare(
       `UPDATE sites SET current_manifest = ?, updated_at = ?, expires_at = ?,
-         alias = COALESCE(?, alias), password_hash = ? WHERE address = ?`,
+         alias = COALESCE(?, alias), password_hash = ?, auth_version = auth_version + 1
+       WHERE address = ?`,
     ).bind(p.manifestHash, now, p.expiresAt, p.alias, p.passwordHash, p.address);
 
   const statements = [

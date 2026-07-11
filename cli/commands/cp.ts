@@ -14,7 +14,7 @@ interface SourceApi {
   downloadSourceBlob(target: string, hash: string): ReturnType<ApiClient["downloadSourceBlob"]>;
 }
 
-export interface DownloadResult {
+export interface CopyResult {
   address: string;
   manifestHash: string;
   destination: string;
@@ -23,7 +23,7 @@ export interface DownloadResult {
 }
 
 function targetOrFail(raw: string | undefined, config: Config): string {
-  if (!raw) fail("usage: nzip download <target> [dir] [--overwrite]");
+  if (!raw) fail("usage: nzip cp <target> [dir] [--overwrite]");
   try {
     return resolveCliTarget(raw, config);
   } catch (e) {
@@ -69,7 +69,7 @@ async function writeFile(path: string, bytes: Uint8Array, overwrite: boolean): P
   }
 }
 
-export async function cmdDownload(
+export async function cmdCp(
   config: Config,
   raw: string | undefined,
   destinationRaw: string | undefined,
@@ -82,7 +82,7 @@ export async function cmdDownload(
   emit(
     () =>
       console.log(
-        `${green("✓")} downloaded ${bold(result.address)} → ${
+        `${green("✓")} copied ${bold(result.address)} → ${
           cyan(result.destination)
         }  (${result.files} files, ${formatBytes(result.bytes)})`,
       ),
@@ -96,7 +96,7 @@ export async function downloadSource(
   target: string,
   destinationRaw: string | undefined,
   overwrite: boolean,
-): Promise<DownloadResult> {
+): Promise<CopyResult> {
   const source = await api.source(target);
   const destination = destinationRaw ?? `${source.address}-source`;
   await prepareDestination(destination, overwrite);

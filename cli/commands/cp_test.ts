@@ -1,5 +1,5 @@
 import { type Manifest, sha256hex, type SourceResponse } from "@nzip/shared";
-import { downloadSource } from "./download.ts";
+import { downloadSource } from "./cp.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -7,7 +7,7 @@ function assertEquals(actual: unknown, expected: unknown): void {
   }
 }
 
-Deno.test("downloadSource reconstructs each manifest file and reports the total", async () => {
+Deno.test("cp reconstructs each manifest file and reports the total", async () => {
   const files = new Map<string, Uint8Array>([
     ["index.html", new TextEncoder().encode("<h1>recovered</h1>\n")],
     ["assets/app.js", new TextEncoder().encode("console.log('ok')\n")],

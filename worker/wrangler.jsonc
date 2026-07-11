@@ -3,7 +3,7 @@
 	"name": "nzip",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-06-01",
-	"routes": [{ "pattern": "n.zip", "custom_domain": true }],
+	"routes": [{ "pattern": "share.example.com", "custom_domain": true }],
 	"r2_buckets": [
 		{
 			"binding": "CONTENT",
@@ -14,7 +14,7 @@
 		{
 			"binding": "DB",
 			"database_name": "nzip",
-			"database_id": "1e65d5b5-80f4-4737-bce9-5892cfdc9cd7"
+			"database_id": "00000000-0000-0000-0000-000000000000"
 		}
 	],
 	"ratelimits": [
@@ -27,7 +27,7 @@
 		]
 	},
 	"vars": {
-		"PUBLIC_BASE": "https://n.zip"
+		"PUBLIC_BASE": "https://share.example.com"
 	}
-	// Secrets (wrangler secret put --config wrangler.local.jsonc): NZIP_TOKEN
+	// Secrets (wrangler secret put --config wrangler.jsonc): NZIP_TOKEN
 }

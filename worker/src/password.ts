@@ -1,9 +1,11 @@
 // Password hashing + unlock-cookie signing for protected shares.
 
-import type { Env } from "./env.ts";
-
 const PBKDF2_ITERATIONS = 100_000;
 const COOKIE_TTL_S = 7 * 24 * 3600;
+
+interface UnlockSecrets {
+  NZIP_TOKEN: string;
+}
 
 const hex = (bytes: ArrayBuffer | Uint8Array) =>
   [...new Uint8Array(bytes as ArrayBuffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -48,7 +50,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return diff === 0;
 }
 
-async function hmacKey(env: Env): Promise<CryptoKey> {
+async function hmacKey(env: UnlockSecrets): Promise<CryptoKey> {
   return await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(`nzip-unlock:${env.NZIP_TOKEN}`),
@@ -63,28 +65,47 @@ function cookieName(address: string): string {
 }
 
 /** Set-Cookie value granting access to one site for COOKIE_TTL_S. */
-export async function makeUnlockCookie(env: Env, address: string): Promise<string> {
+export async function makeUnlockCookie(
+  env: UnlockSecrets,
+  address: string,
+  authVersion: number,
+): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + COOKIE_TTL_S;
   const sig = hex(
     await crypto.subtle.sign(
       "HMAC",
       await hmacKey(env),
-      new TextEncoder().encode(`${address}.${exp}`),
+      new TextEncoder().encode(`${address}.${authVersion}.${exp}`),
     ),
   );
   // Path without trailing slash so the cookie also matches the bare /{address} URL.
-  return `${cookieName(address)}=${exp}.${sig}; Max-Age=${COOKIE_TTL_S}; Path=/${address}; HttpOnly; Secure; SameSite=Lax`;
+  return `${cookieName(address)}=${authVersion}.${exp}.${sig}; Max-Age=${COOKIE_TTL_S}; Path=/${address}; HttpOnly; Secure; SameSite=Lax`;
 }
 
 export async function hasValidUnlockCookie(
   req: Request,
-  env: Env,
+  env: UnlockSecrets,
   address: string,
+  authVersion: number,
 ): Promise<boolean> {
   const cookies = req.headers.get("cookie") ?? "";
   const match = cookies.match(new RegExp(`(?:^|;\\s*)${cookieName(address)}=([^;]+)`));
   if (!match) return false;
-  const [expStr, sig] = match[1].split(".");
+  const parts = match[1].split(".");
+  let expStr: string;
+  let sig: string;
+  let payload: string;
+  if (parts.length === 2 && authVersion === 1) {
+    // Cookies issued before auth_version existed remain valid until the site's
+    // password policy first changes and increments the version.
+    [expStr, sig] = parts;
+    payload = `${address}.${expStr}`;
+  } else if (parts.length === 3 && parts[0] === String(authVersion)) {
+    [, expStr, sig] = parts;
+    payload = `${address}.${authVersion}.${expStr}`;
+  } else {
+    return false;
+  }
   const exp = parseInt(expStr, 10);
   if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) return false;
   try {
@@ -92,7 +113,7 @@ export async function hasValidUnlockCookie(
       "HMAC",
       await hmacKey(env),
       hexToBytes(sig) as BufferSource,
-      new TextEncoder().encode(`${address}.${exp}`),
+      new TextEncoder().encode(payload),
     );
   } catch {
     return false;

@@ -9,7 +9,7 @@ cd worker
 npx wrangler login
 
 # 2. private Wrangler config
-cp wrangler.local.example.jsonc wrangler.local.jsonc
+cp wrangler.jsonc wrangler.local.jsonc
 # Edit wrangler.local.jsonc now:
 # - routes[0].pattern: your hostname, such as share.example.com
 # - vars.PUBLIC_BASE: https://<that hostname>
@@ -33,6 +33,14 @@ npx wrangler deploy --config wrangler.local.jsonc
 
 `routes[0].pattern` and `vars.PUBLIC_BASE` are required user-provided values. `PUBLIC_BASE` is the
 origin printed in share URLs and the server URL passed to `nzip auth`.
+
+When upgrading an existing deployment created before `auth_version` was added, apply its migration
+before deploying the new Worker:
+
+```sh
+cd worker
+npx wrangler d1 execute nzip --remote --file migrations/0001_auth_version.sql
+```
 
 > **Cron gotcha:** deploying the `triggers` block fails with a 403 (API error `10063`) until the
 > account has a workers.dev subdomain registered — even if the Worker only serves a custom domain.

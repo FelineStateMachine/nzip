@@ -1,12 +1,14 @@
 {
   "name": "nzip-worker",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "dev:local": "wrangler dev --config wrangler.local.jsonc",
     "deploy": "wrangler deploy",
     "deploy:local": "wrangler deploy --config wrangler.local.jsonc",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260708.1",

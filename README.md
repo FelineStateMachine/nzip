@@ -52,7 +52,8 @@ three target forms:
   them, and the revert itself is recorded as a push.
 - **Password-protectable.** `nzip push ./demo work:demo --password …` publishes the content and
   password policy atomically, then gates the site behind an unlock form (PBKDF2 hashing, signed
-  per-site cookie, 7 days). Use `nzip site` to change protection later.
+  per-site cookie, 7 days). Changing the password policy revokes existing cookies immediately. Use
+  `nzip site` to change protection later.
 - **Single-user by design.** One bearer token, stored as a Worker secret and in
   `~/.config/nzip/config.json` (mode 0600).
 - **Locates itself.** `nzip where <target>` prints the local directory this machine pushed a site
@@ -71,7 +72,7 @@ nzip auth [--server URL] [--token T]     authenticate and save config
 nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0–0xf)
 nzip vault ls | default <name>           list vaults / set the default
 nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
-nzip download <target> [dir] [--overwrite]  recover the current hosted bundle
+nzip cp <target> [dir] [--overwrite]        copy the current hosted bundle locally
 nzip site <target> [--ttl …] [--password PW | --no-password]
 nzip ls [vault]                          list sites
 nzip where <target>                      print the local dir this machine pushed from
@@ -82,19 +83,19 @@ nzip revert <target> [--to N] [--list]   repoint to a previous push
 
 Password and TTL are committed with the content. On a new site, omitting `--password` creates an
 unprotected site; on an existing target, omission preserves its current password. Pass
-`--no-password` to clear protection explicitly. The former `nzip share` command remains available
-as a compatibility alias for `nzip site`.
+`--no-password` to clear protection explicitly. The former `nzip share` command remains available as
+a compatibility alias for `nzip site`.
 
 Pushing a single `page.html` stores it as the site's `index.html`. Directory pushes skip dotfiles
 and `node_modules`, and honor a `.nzipignore` (one glob per line). Single-file sites serve directly
 at the bare address (`/2a3f`); multi-file bundles redirect to `/2a3f/` so relative asset URLs
 resolve.
 
-`nzip download work:demo ./recovered-demo` recovers the exact current bundle from the authenticated
-server when the original local directory is unavailable. It refuses non-empty destinations unless
+`nzip cp work:demo ./recovered-demo` recovers the exact current bundle from the authenticated server
+when the original local directory is unavailable. It refuses non-empty destinations unless
 `--overwrite` is passed, and verifies every downloaded file against the hosted manifest. It can only
 restore uploaded files—not dotfiles, `.nzipignore`, or other local project metadata excluded from a
-push.
+push. The former `nzip download` command remains available as a compatibility alias.
 
 ## Architecture
 
@@ -121,7 +122,7 @@ revalidation and a 60-second cache. Metadata lives in three tables:
 | table    | keys                                                                     |
 | -------- | ------------------------------------------------------------------------ |
 | `vaults` | slot (0–15), name                                                        |
-| `sites`  | address (0–65535), vault, alias, current manifest, expiry, password hash |
+| `sites`  | address (0–65535), vault, alias, current manifest, expiry, password hash/version |
 | `pushes` | per-site history (seq, manifest, note), capped at 10, powers `revert`    |
 
 **GC safety rule:** an R2 object is deleted only if no live site or retained history entry
@@ -173,7 +174,7 @@ See [`worker/setup.md`](worker/setup.md) for the full checklist. In short:
 ```sh
 cd worker
 npx wrangler login
-cp wrangler.local.example.jsonc wrangler.local.jsonc
+cp wrangler.jsonc wrangler.local.jsonc
 # edit wrangler.local.jsonc:
 # - routes[0].pattern: your hostname, such as share.example.com
 # - vars.PUBLIC_BASE: https://<that hostname>

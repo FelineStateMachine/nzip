@@ -296,6 +296,7 @@ export async function api(req: Request, env: Env, url: URL): Promise<Response> {
         if (passwordHash !== undefined) {
           updates.push("password_hash = ?");
           values.push(passwordHash);
+          updates.push("auth_version = auth_version + 1");
         }
         if (updates.length > 0) {
           updates.push("updated_at = ?");

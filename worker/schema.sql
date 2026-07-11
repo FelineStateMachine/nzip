@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS sites (
   updated_at INTEGER NOT NULL,
   expires_at INTEGER,              -- unix seconds; NULL = permanent
   password_hash TEXT,              -- reserved for password shares; NULL = public
+  auth_version INTEGER NOT NULL DEFAULT 1, -- increment to revoke unlock cookies
   UNIQUE (vault_slot, alias)
 );
 CREATE INDEX IF NOT EXISTS idx_sites_expiry ON sites(expires_at) WHERE expires_at IS NOT NULL;

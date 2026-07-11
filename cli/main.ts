@@ -20,7 +20,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { cmdAuth } from "./commands/auth.ts";
 import { cmdPush } from "./commands/push.ts";
-import { cmdDownload } from "./commands/download.ts";
+import { cmdCp } from "./commands/cp.ts";
 import { cmdLs, cmdRevert, cmdRm, cmdSite, cmdStatus } from "./commands/sites.ts";
 import { cmdVault } from "./commands/vault.ts";
 import { cmdWhere } from "./commands/where.ts";
@@ -35,7 +35,7 @@ usage:
   nzip vault ls                            list vaults
   nzip vault default <name>                set default vault
   nzip push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
-  nzip download <target> [dir] [--overwrite]
+  nzip cp <target> [dir] [--overwrite]      copy a hosted bundle locally
   nzip site <target> [--ttl ...] [--password PW | --no-password]
                                            inspect or update ttl/password
   nzip share <target> [...]                 deprecated alias for nzip site
@@ -84,8 +84,9 @@ async function main(): Promise<void> {
         args.password,
         args["no-password"],
       );
-    case "download":
-      return await cmdDownload(config, rest[0], rest[1], args.overwrite);
+    case "cp":
+    case "download": // compatibility alias for the former command name
+      return await cmdCp(config, rest[0], rest[1], args.overwrite);
     case "site":
     case "share": // compatibility alias for the former site-management command
       return await cmdSite(config, rest[0], args.ttl, args.password, args["no-password"]);

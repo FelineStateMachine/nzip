@@ -53,7 +53,7 @@ async function handleUnlock(req: Request, env: Env, site: SiteRow, address: stri
       // Bare address: single-file sites serve there directly, multi-file ones
       // bounce through the trailing-slash redirect.
       location: `/${address}`,
-      "set-cookie": await makeUnlockCookie(env, address),
+      "set-cookie": await makeUnlockCookie(env, address, site.auth_version),
     },
   });
 }
@@ -90,7 +90,10 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
   if (m[2] === "/__unlock" && req.method === "POST") {
     return await handleUnlock(req, env, site, addressStr);
   }
-  if (site.password_hash && !(await hasValidUnlockCookie(req, env, addressStr))) {
+  if (
+    site.password_hash &&
+    !(await hasValidUnlockCookie(req, env, addressStr, site.auth_version))
+  ) {
     return htmlResponse(unlockForm(addressStr), 401);
   }
 
