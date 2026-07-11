@@ -116,8 +116,12 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
   if (!entry) return htmlResponse(NOT_FOUND_PAGE, 404);
 
   const etag = `"${entry.h}"`;
-  if (req.headers.get("if-none-match") === etag) {
-    return new Response(null, { status: 304, headers: { etag } });
+  const protectedSite = site.password_hash !== null;
+  const cacheControl = protectedSite ? "private, no-store" : "public, max-age=60";
+  // Never validate a previously cached protected response with 304: doing so
+  // would let the browser reuse its stored body after the site was locked.
+  if (!protectedSite && req.headers.get("if-none-match") === etag) {
+    return new Response(null, { status: 304, headers: { etag, "cache-control": cacheControl } });
   }
 
   const blob = await env.CONTENT.get(`blob/${entry.h}`);
@@ -128,8 +132,9 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
       "content-type": entry.ct,
       "content-length": String(entry.s),
       etag,
-      // Short max-age: addresses are mutable on re-push. ETag makes revalidation free.
-      "cache-control": "public, max-age=60",
+      // Public addresses are mutable on re-push. Protected content must never
+      // survive the password check in a browser or intermediary cache.
+      "cache-control": cacheControl,
     },
   });
 }
