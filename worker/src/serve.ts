@@ -95,6 +95,7 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
   // relative to break); multi-file bundles redirect to the trailing slash so
   // relative asset URLs resolve.
   let assetPath: string;
+  let explicitIndexPath = false;
   if (m[2] === undefined) {
     if (filePaths.length !== 1) {
       return Response.redirect(new URL(`/${addressStr}/`, url).toString(), 302);
@@ -102,7 +103,21 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
     assetPath = filePaths[0];
   } else {
     assetPath = decodeURIComponent(m[2].slice(1)); // strip leading /
+    explicitIndexPath = /(^|\/)index\.html$/.test(assetPath);
     if (assetPath === "" || assetPath.endsWith("/")) assetPath += "index.html";
+  }
+
+  // Keep directory index filenames out of public URLs. Static generators often
+  // emit same-page and anchor links as `index.html` or `index.html#section`;
+  // browsers preserve the fragment while following this redirect.
+  if (explicitIndexPath && manifest.files[assetPath]) {
+    const isRootIndex = assetPath === "index.html";
+    const canonicalPath = isRootIndex && filePaths.length === 1
+      ? `/${addressStr}`
+      : path.slice(0, -"index.html".length);
+    const canonicalUrl = new URL(canonicalPath, url);
+    canonicalUrl.search = url.search;
+    return Response.redirect(canonicalUrl.toString(), 302);
   }
 
   let entry = manifest.files[assetPath];
