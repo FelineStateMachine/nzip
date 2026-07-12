@@ -18,14 +18,24 @@ import { assertVaultAllowed, type Config } from "./config.ts";
 export class ApiClient {
   constructor(private config: Config) {}
 
-  private async request<T>(method: string, path: string, body?: BodyInit): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: BodyInit | Uint8Array,
+  ): Promise<T> {
+    const fetchBody: BodyInit | undefined = body instanceof Uint8Array
+      ? body.buffer instanceof ArrayBuffer
+        ? body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)
+        : body.slice().buffer
+      : body;
     const res = await fetch(`${this.config.server}${path}`, {
       method,
       headers: {
         authorization: `Bearer ${this.config.token}`,
         ...(typeof body === "string" ? { "content-type": "application/json" } : {}),
+        ...(body instanceof Uint8Array ? { "content-length": String(body.byteLength) } : {}),
       },
-      body,
+      body: fetchBody,
     });
     const text = await res.text();
     if (!res.ok) {
@@ -38,7 +48,10 @@ export class ApiClient {
     return JSON.parse(text) as T;
   }
 
-  private async requestBytes(method: string, path: string): Promise<Uint8Array> {
+  private async requestBytes(
+    method: string,
+    path: string,
+  ): Promise<Uint8Array> {
     const res = await fetch(`${this.config.server}${path}`, {
       method,
       headers: { authorization: `Bearer ${this.config.token}` },
@@ -59,11 +72,19 @@ export class ApiClient {
   }
 
   prepare(manifest: Manifest): Promise<PrepareResponse> {
-    return this.request("POST", "/api/push/prepare", JSON.stringify({ manifest }));
+    return this.request(
+      "POST",
+      "/api/push/prepare",
+      JSON.stringify({ manifest }),
+    );
   }
 
   uploadBlob(hash: string, bytes: Uint8Array): Promise<{ ok: true }> {
-    return this.request("PUT", `/api/blob/${hash}`, bytes as unknown as BodyInit);
+    return this.request(
+      "PUT",
+      `/api/blob/${hash}`,
+      bytes,
+    );
   }
 
   commit(req: CommitRequest): Promise<CommitResponse> {
@@ -80,7 +101,10 @@ export class ApiClient {
   }
 
   source(target: string): Promise<SourceResponse> {
-    return this.request("GET", `/api/sites/${encodeURIComponent(target)}/source`);
+    return this.request(
+      "GET",
+      `/api/sites/${encodeURIComponent(target)}/source`,
+    );
   }
 
   downloadSourceBlob(target: string, hash: string): Promise<Uint8Array> {
@@ -94,14 +118,21 @@ export class ApiClient {
     target: string,
     patch: { ttl?: number | "forever"; password?: string | null },
   ): Promise<SiteDetail> {
-    return this.request("PATCH", `/api/sites/${encodeURIComponent(target)}`, JSON.stringify(patch));
+    return this.request(
+      "PATCH",
+      `/api/sites/${encodeURIComponent(target)}`,
+      JSON.stringify(patch),
+    );
   }
 
   deleteSite(target: string): Promise<{ ok: true; address: string }> {
     return this.request("DELETE", `/api/sites/${encodeURIComponent(target)}`);
   }
 
-  revert(target: string, toSeq?: number): Promise<CommitResponse & { revertedTo: number }> {
+  revert(
+    target: string,
+    toSeq?: number,
+  ): Promise<CommitResponse & { revertedTo: number }> {
     return this.request(
       "POST",
       `/api/sites/${encodeURIComponent(target)}/revert`,
@@ -139,7 +170,10 @@ export function resolveCliTarget(raw: string, config: Config): string {
   return `${vault}:${raw}`;
 }
 
-export function commitTargetFor(raw: string | undefined, config: Config): Target {
+export function commitTargetFor(
+  raw: string | undefined,
+  config: Config,
+): Target {
   if (raw === undefined) {
     const vault = config.defaultVault;
     if (!vault) throw new Error("no target given and no defaultVault set");

@@ -7,7 +7,9 @@ import type { Env } from "./env.ts";
 // concurrent sweep.
 const MIN_AGE_MS = 24 * 3600 * 1000;
 
-export async function runGc(env: Env): Promise<{ expiredSites: number; deletedObjects: number }> {
+export async function runGc(
+  env: Env,
+): Promise<{ expiredSites: number; deletedObjects: number }> {
   const now = Math.floor(Date.now() / 1000);
 
   // 1. Sweep expired sites (cascades to pushes history).
@@ -20,7 +22,9 @@ export async function runGc(env: Env): Promise<{ expiredSites: number; deletedOb
   const current = await env.DB.prepare("SELECT current_manifest FROM sites")
     .all<{ current_manifest: string }>();
   for (const r of current.results) liveManifests.add(r.current_manifest);
-  const historic = await env.DB.prepare("SELECT DISTINCT manifest_hash FROM pushes")
+  const historic = await env.DB.prepare(
+    "SELECT DISTINCT manifest_hash FROM pushes",
+  )
     .all<{ manifest_hash: string }>();
   for (const r of historic.results) liveManifests.add(r.manifest_hash);
 
@@ -39,11 +43,17 @@ export async function runGc(env: Env): Promise<{ expiredSites: number; deletedOb
   for (const prefix of ["manifest/", "blob/"] as const) {
     let cursor: string | undefined;
     do {
-      const page: R2Objects = await env.CONTENT.list({ prefix, cursor, limit: 1000 });
+      const page: R2Objects = await env.CONTENT.list({
+        prefix,
+        cursor,
+        limit: 1000,
+      });
       const doomed = page.objects.filter((o) => {
         if (o.uploaded.getTime() > cutoff) return false;
         const hash = o.key.slice(prefix.length);
-        return prefix === "manifest/" ? !liveManifests.has(hash) : !liveBlobs.has(hash);
+        return prefix === "manifest/"
+          ? !liveManifests.has(hash)
+          : !liveBlobs.has(hash);
       }).map((o) => o.key);
       if (doomed.length > 0) {
         await env.CONTENT.delete(doomed);

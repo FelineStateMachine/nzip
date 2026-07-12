@@ -11,7 +11,10 @@ const DOWNLOAD_CONCURRENCY = 6;
 
 interface SourceApi {
   source(target: string): ReturnType<ApiClient["source"]>;
-  downloadSourceBlob(target: string, hash: string): ReturnType<ApiClient["downloadSourceBlob"]>;
+  downloadSourceBlob(
+    target: string,
+    hash: string,
+  ): ReturnType<ApiClient["downloadSourceBlob"]>;
 }
 
 export interface CopyResult {
@@ -31,12 +34,21 @@ function targetOrFail(raw: string | undefined, config: Config): string {
   }
 }
 
-async function prepareDestination(path: string, overwrite: boolean): Promise<void> {
+async function prepareDestination(
+  path: string,
+  overwrite: boolean,
+): Promise<void> {
   try {
     const stat = await Deno.lstat(path);
-    if (!stat.isDirectory || stat.isSymlink) fail(`destination is not a directory: ${path}`);
+    if (!stat.isDirectory || stat.isSymlink) {
+      fail(`destination is not a directory: ${path}`);
+    }
     for await (const _entry of Deno.readDir(path)) {
-      if (!overwrite) fail(`destination is not empty: ${path} (pass --overwrite to replace files)`);
+      if (!overwrite) {
+        fail(
+          `destination is not empty: ${path} (pass --overwrite to replace files)`,
+        );
+      }
       break;
     }
   } catch (e) {
@@ -52,10 +64,16 @@ async function makeParent(path: string): Promise<void> {
   await Deno.mkdir(dirname(path), { recursive: true });
 }
 
-async function writeFile(path: string, bytes: Uint8Array, overwrite: boolean): Promise<void> {
+async function writeFile(
+  path: string,
+  bytes: Uint8Array,
+  overwrite: boolean,
+): Promise<void> {
   try {
     const existing = await Deno.lstat(path);
-    if (existing.isDirectory || existing.isSymlink) fail(`refusing to replace non-file: ${path}`);
+    if (existing.isDirectory || existing.isSymlink) {
+      fail(`refusing to replace non-file: ${path}`);
+    }
     if (!overwrite) fail(`destination file already exists: ${path}`);
   } catch (e) {
     if (!(e instanceof Deno.errors.NotFound)) throw e;
@@ -105,12 +123,18 @@ export async function downloadSource(
   const totalBytes = files.reduce((total, [, entry]) => total + entry.s, 0);
   const queue = [...files];
   let downloaded = 0;
-  const workers = Array.from({ length: Math.min(DOWNLOAD_CONCURRENCY, queue.length) }, async () => {
+  const workers = Array.from({
+    length: Math.min(DOWNLOAD_CONCURRENCY, queue.length),
+  }, async () => {
     for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
       const [relativePath, entry] = next;
-      if (!validatePath(relativePath)) fail(`invalid path in source manifest: ${relativePath}`);
+      if (!validatePath(relativePath)) {
+        fail(`invalid path in source manifest: ${relativePath}`);
+      }
       const bytes = await api.downloadSourceBlob(target, entry.h);
-      if (bytes.length !== entry.s) fail(`size mismatch while downloading ${relativePath}`);
+      if (bytes.length !== entry.s) {
+        fail(`size mismatch while downloading ${relativePath}`);
+      }
       if (await sha256hex(bytes) !== entry.h) {
         fail(`hash mismatch while downloading ${relativePath}`);
       }

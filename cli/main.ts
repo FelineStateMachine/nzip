@@ -89,7 +89,13 @@ async function main(): Promise<void> {
       return await cmdCp(config, rest[0], rest[1], args.overwrite);
     case "site":
     case "share": // compatibility alias for the former site-management command
-      return await cmdSite(config, rest[0], args.ttl, args.password, args["no-password"]);
+      return await cmdSite(
+        config,
+        rest[0],
+        args.ttl,
+        args.password,
+        args["no-password"],
+      );
     case "ls":
       return await cmdLs(config, rest[0]);
     case "where":

@@ -45,7 +45,11 @@ export async function cmdVault(
         `${green("✓")} vault ${bold(v.name)} registered at slot 0x${v.slot.toString(16)}`,
       );
       if (madeDefault) console.log(dim(`  set as default vault`));
-    }, { ok: true, ...v, default: madeDefault || config.defaultVault === v.name });
+    }, {
+      ok: true,
+      ...v,
+      default: madeDefault || config.defaultVault === v.name,
+    });
     return;
   }
 

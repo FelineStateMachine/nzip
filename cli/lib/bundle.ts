@@ -1,7 +1,14 @@
 // Directory walking, hashing, and manifest building for `nzip push`.
 
 import { globToRegExp, join, relative } from "@std/path";
-import { contentTypeFor, sha256hex, validatePath } from "@nzip/shared";
+import {
+  contentTypeFor,
+  MAX_BLOB_BYTES,
+  MAX_UNIQUE_BLOBS,
+  sha256hex,
+  validateManifest,
+  validatePath,
+} from "@nzip/shared";
 import type { Manifest } from "@nzip/shared";
 
 const SKIP_DIRS = new Set(["node_modules", ".git"]);
@@ -26,7 +33,11 @@ async function loadIgnore(dir: string): Promise<RegExp[]> {
   }
 }
 
-async function* walk(root: string, dir: string, ignore: RegExp[]): AsyncGenerator<string> {
+async function* walk(
+  root: string,
+  dir: string,
+  ignore: RegExp[],
+): AsyncGenerator<string> {
   for await (const entry of Deno.readDir(dir)) {
     if (entry.name.startsWith(".")) continue;
     const full = join(dir, entry.name);
@@ -49,10 +60,26 @@ export async function buildBundle(path: string): Promise<Bundle> {
   let totalBytes = 0;
 
   const addFile = async (storedPath: string, filePath: string) => {
+    const fileStat = await Deno.stat(filePath);
+    if (fileStat.size > MAX_BLOB_BYTES) {
+      throw new Error(`file too large (max 50 MiB): ${storedPath}`);
+    }
     const bytes = await Deno.readFile(filePath);
+    if (bytes.length > MAX_BLOB_BYTES) {
+      throw new Error(`file too large (max 50 MiB): ${storedPath}`);
+    }
     const hash = await sha256hex(bytes);
-    manifest.files[storedPath] = { h: hash, s: bytes.length, ct: contentTypeFor(storedPath) };
-    if (!blobs.has(hash)) blobs.set(hash, bytes);
+    manifest.files[storedPath] = {
+      h: hash,
+      s: bytes.length,
+      ct: contentTypeFor(storedPath),
+    };
+    if (!blobs.has(hash)) {
+      if (blobs.size >= MAX_UNIQUE_BLOBS) {
+        throw new Error(`too many unique blobs (max ${MAX_UNIQUE_BLOBS})`);
+      }
+      blobs.set(hash, bytes);
+    }
     totalBytes += bytes.length;
   };
 
@@ -61,6 +88,7 @@ export async function buildBundle(path: string): Promise<Bundle> {
     const name = path.split("/").pop()!;
     const stored = /\.html?$/i.test(name) ? "index.html" : name;
     await addFile(stored, path);
+    validateManifest(manifest);
     return { manifest, blobs, totalBytes, warnings };
   }
 
@@ -78,8 +106,11 @@ export async function buildBundle(path: string): Promise<Bundle> {
     throw new Error(`no files to push in ${path}`);
   }
   if (!manifest.files["index.html"]) {
-    warnings.push("no root index.html — the site URL will 404 until one exists");
+    warnings.push(
+      "no root index.html — the site URL will 404 until one exists",
+    );
   }
+  validateManifest(manifest);
   return { manifest, blobs, totalBytes, warnings };
 }
 

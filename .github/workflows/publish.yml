@@ -16,8 +16,30 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      # Publishes the whole workspace (@nzip/shared then @nzip/cli) at the
-      # versions in their deno.json. No token needed — OIDC handles auth and
-      # attaches build provenance.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            worker/package-lock.json
+      - name: Install root tooling
+        run: npm ci
+      - name: Install Worker tooling
+        working-directory: worker
+        run: npm ci
+      - name: Check, lint, and test Deno workspace
+        run: |
+          deno task fmt:check
+          deno task lint
+          deno task check
+          deno task test
+          deno publish --dry-run
+      - name: Check and test Worker
+        working-directory: worker
+        run: |
+          npm run check
+          npm test
+          npx wrangler deploy --dry-run
       - name: Publish workspace
         run: deno publish

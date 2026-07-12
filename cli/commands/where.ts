@@ -7,7 +7,10 @@ import type { Config } from "../lib/config.ts";
 import { lookup } from "../lib/paths.ts";
 import { amber, dim, emit, fail } from "../lib/fmt.ts";
 
-export async function cmdWhere(config: Config, raw: string | undefined): Promise<void> {
+export async function cmdWhere(
+  config: Config,
+  raw: string | undefined,
+): Promise<void> {
   if (!raw) fail("usage: nzip where <target>");
 
   const q = /^[0-9a-f]{4}$/.test(raw) ? { address: raw } : (() => {
@@ -41,7 +44,9 @@ export async function cmdWhere(config: Config, raw: string | undefined): Promise
     () => {
       console.log(entry.path); // bare path on stdout for `cd "$(nzip where …)"`
       if (!exists) {
-        console.error(dim(`  ${amber("↳")} directory no longer exists (moved or deleted)`));
+        console.error(
+          dim(`  ${amber("↳")} directory no longer exists (moved or deleted)`),
+        );
       }
     },
     {

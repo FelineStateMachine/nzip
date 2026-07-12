@@ -1,18 +1,5 @@
-export interface Env {
-  CONTENT: R2Bucket;
-  DB: D1Database;
-  NZIP_TOKEN: string;
-  PUBLIC_BASE: string;
-  // Per-IP limiter for bare-address hits — throttles address enumeration.
-  RL_ENUM: RateLimit;
-  // Per-IP+address limiter for the unlock endpoint — throttles password guessing.
-  RL_UNLOCK: RateLimit;
-  // Caps persisted enumeration observations per scanner to bound D1 usage.
-  RL_OBSERVE: RateLimit;
-  EMAIL: SendEmail;
-  ALERT_EMAIL_TO: string;
-  ALERT_EMAIL_FROM: string;
-}
+// Generated from wrangler.jsonc by `npm run types`.
+export type Env = Cloudflare.Env;
 
 export function json<T = unknown>(
   body: T,

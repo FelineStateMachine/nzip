@@ -2,7 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nzip",
   "main": "src/index.ts",
-  "compatibility_date": "2026-06-01",
+  "compatibility_date": "2026-07-11",
+  "compatibility_flags": ["nodejs_compat"],
   "cache": { "enabled": true },
   "observability": {
     "enabled": true,
@@ -41,6 +42,11 @@
       "name": "RL_OBSERVE",
       "namespace_id": "1003",
       "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      "name": "RL_SIGNAL",
+      "namespace_id": "1004",
+      "simple": { "limit": 1, "period": 60 }
     }
   ],
   "send_email": [

@@ -17,7 +17,11 @@ import {
   ttlLeft,
 } from "../lib/fmt.ts";
 
-function targetOrFail(raw: string | undefined, config: Config, usage: string): string {
+function targetOrFail(
+  raw: string | undefined,
+  config: Config,
+  usage: string,
+): string {
   if (!raw) fail(usage);
   try {
     return resolveCliTarget(raw, config);
@@ -61,7 +65,10 @@ export async function cmdSite(
   );
 }
 
-export async function cmdLs(config: Config, vault: string | undefined): Promise<void> {
+export async function cmdLs(
+  config: Config,
+  vault: string | undefined,
+): Promise<void> {
   const api = new ApiClient(config);
   const sites = await api.listSites(vault);
   // The server is authoritative for what still exists — drop breadcrumbs for
@@ -86,7 +93,11 @@ export async function cmdLs(config: Config, vault: string | undefined): Promise<
   }, { ok: true, sites });
 }
 
-export async function cmdRm(config: Config, raw: string | undefined, yes: boolean): Promise<void> {
+export async function cmdRm(
+  config: Config,
+  raw: string | undefined,
+  yes: boolean,
+): Promise<void> {
   const target = targetOrFail(raw, config, "usage: nzip rm <target> [--yes]");
   const api = new ApiClient(config);
   const site = await api.siteDetail(target);
@@ -102,11 +113,18 @@ export async function cmdRm(config: Config, raw: string | undefined, yes: boolea
     }
   }
   await api.deleteSite(target);
-  await forget({ address: site.address, vault: site.vault, alias: site.alias ?? undefined }).catch(
+  await forget({
+    address: site.address,
+    vault: site.vault,
+    alias: site.alias ?? undefined,
+  }).catch(
     () => {},
   );
   emit(
-    () => console.log(`${green("✓")} removed ${bold(name)} — content becomes eligible for GC`),
+    () =>
+      console.log(
+        `${green("✓")} removed ${bold(name)} — content becomes eligible for GC`,
+      ),
     { ok: true, removed: site.address, alias: site.alias, vault: site.vault },
   );
 }
@@ -124,7 +142,9 @@ export async function cmdStatus(config: Config): Promise<void> {
     if (status.vaults.length > 0) {
       console.log(table(
         ["SLOT", "VAULT", "SITES"],
-        status.vaults.map((v) => [`0x${v.slot.toString(16)}`, v.name, String(v.siteCount)]),
+        status.vaults.map((
+          v,
+        ) => [`0x${v.slot.toString(16)}`, v.name, String(v.siteCount)]),
       ));
     }
   }, { ...status, server: config.server });
@@ -136,7 +156,11 @@ export async function cmdRevert(
   toSeq: number | undefined,
   list: boolean,
 ): Promise<void> {
-  const target = targetOrFail(raw, config, "usage: nzip revert <target> [--to N] [--list]");
+  const target = targetOrFail(
+    raw,
+    config,
+    "usage: nzip revert <target> [--to N] [--list]",
+  );
   const api = new ApiClient(config);
 
   if (list) {

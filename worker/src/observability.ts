@@ -125,8 +125,15 @@ export async function recordEnumerationProbe(
     const ip = req.headers.get("cf-connecting-ip") ?? "local";
     const digest = await scannerDigest(ip, env.NZIP_TOKEN);
     const scannerId = hex(digest.slice(0, 8));
-    const { success } = await env.RL_OBSERVE.limit({ key: scannerId });
-    if (!success && response.status !== 429) return;
+    // A rejected enumeration request still carries a useful confirmation that
+    // the edge limiter fired, but it must not bypass the persistence budget.
+    // Keep confirmations on a separate quota so a scanner cannot turn an
+    // unlimited stream of 429 responses into unlimited D1 writes.
+    const persistenceLimiter = response.status === 429
+      ? env.RL_SIGNAL
+      : env.RL_OBSERVE;
+    const { success } = await persistenceLimiter.limit({ key: scannerId });
+    if (!success) return;
 
     const now = Math.floor(Date.now() / 1000);
     const bucket = now - (now % 300);

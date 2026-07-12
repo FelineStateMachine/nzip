@@ -16,13 +16,17 @@ export function isAddressString(s: string): boolean {
 
 /** "2a3f" → 0x2a3f. Throws on malformed input. */
 export function parseAddress(s: string): number {
-  if (!ADDR_RE.test(s)) throw new Error(`invalid address: ${JSON.stringify(s)}`);
+  if (!ADDR_RE.test(s)) {
+    throw new Error(`invalid address: ${JSON.stringify(s)}`);
+  }
   return parseInt(s, 16);
 }
 
 /** 0x2a3f → "2a3f" */
 export function formatAddress(addr: number): string {
-  if (!Number.isInteger(addr) || addr < 0 || addr >= VAULT_SLOTS * SITES_PER_VAULT) {
+  if (
+    !Number.isInteger(addr) || addr < 0 || addr >= VAULT_SLOTS * SITES_PER_VAULT
+  ) {
     throw new Error(`address out of range: ${addr}`);
   }
   return addr.toString(16).padStart(4, "0");

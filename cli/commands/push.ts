@@ -37,13 +37,20 @@ export async function cmdPush(
   const bundle = await buildBundle(path).catch((e) => fail((e as Error).message));
   const fileCount = Object.keys(bundle.manifest.files).length;
   emit(() => {
-    console.log(dim(`  bundling ${path} … ${fileCount} files, ${formatBytes(bundle.totalBytes)}`));
+    console.log(
+      dim(
+        `  bundling ${path} … ${fileCount} files, ${formatBytes(bundle.totalBytes)}`,
+      ),
+    );
     for (const w of bundle.warnings) console.log(`  ${amber("!")} ${w}`);
   }, undefined);
 
   const prep = await api.prepare(bundle.manifest);
   const dedupCount = bundle.blobs.size - prep.missing.length;
-  const missingBytes = prep.missing.reduce((n, h) => n + (bundle.blobs.get(h)?.length ?? 0), 0);
+  const missingBytes = prep.missing.reduce(
+    (n, h) => n + (bundle.blobs.get(h)?.length ?? 0),
+    0,
+  );
   emit(() =>
     console.log(
       dim(

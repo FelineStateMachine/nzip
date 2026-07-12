@@ -100,7 +100,9 @@ export function hintFor(message: string): string | undefined {
 
 export function fail(message: string, hint = hintFor(message)): never {
   if (jsonMode) {
-    console.error(JSON.stringify({ ok: false, error: message, ...(hint ? { hint } : {}) }));
+    console.error(
+      JSON.stringify({ ok: false, error: message, ...(hint ? { hint } : {}) }),
+    );
   } else {
     console.error(`${red("✗")} ${message}`);
     if (hint) console.error(`  ${dim(`↳ ${hint}`)}`);

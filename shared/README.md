@@ -24,7 +24,11 @@ import { canonicalManifestBytes, type Manifest, manifestHash, parseTarget } from
 const manifest: Manifest = {
   v: 1,
   files: {
-    "index.html": { h: "…64-hex-sha256…", s: 128, ct: "text/html; charset=utf-8" },
+    "index.html": {
+      h: "…64-hex-sha256…",
+      s: 128,
+      ct: "text/html; charset=utf-8",
+    },
   },
 };
 

@@ -8,15 +8,23 @@ interface UnlockSecrets {
 }
 
 const hex = (bytes: ArrayBuffer | Uint8Array) =>
-  [...new Uint8Array(bytes as ArrayBuffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  [...new Uint8Array(bytes as ArrayBuffer)].map((b) =>
+    b.toString(16).padStart(2, "0")
+  ).join("");
 
 function hexToBytes(s: string): Uint8Array {
   const out = new Uint8Array(s.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+  }
   return out;
 }
 
-async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<string> {
+async function pbkdf2(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -35,18 +43,31 @@ async function pbkdf2(password: string, salt: Uint8Array, iterations: number): P
 /** → "pbkdf2$<iterations>$<saltHex>$<hashHex>" */
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  return `pbkdf2$${PBKDF2_ITERATIONS}$${hex(salt)}$${await pbkdf2(password, salt, PBKDF2_ITERATIONS)}`;
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${hex(salt)}$${await pbkdf2(
+    password,
+    salt,
+    PBKDF2_ITERATIONS,
+  )}`;
 }
 
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  stored: string,
+): Promise<boolean> {
   const [scheme, iterStr, saltHex, hashHex] = stored.split("$");
   if (scheme !== "pbkdf2") return false;
-  const actual = await pbkdf2(password, hexToBytes(saltHex), parseInt(iterStr, 10));
+  const actual = await pbkdf2(
+    password,
+    hexToBytes(saltHex),
+    parseInt(iterStr, 10),
+  );
   // Both sides are fixed-length hex of a fresh derivation; timing is not a concern here,
   // but compare in constant time anyway.
   if (actual.length !== hashHex.length) return false;
   let diff = 0;
-  for (let i = 0; i < actual.length; i++) diff |= actual.charCodeAt(i) ^ hashHex.charCodeAt(i);
+  for (let i = 0; i < actual.length; i++) {
+    diff |= actual.charCodeAt(i) ^ hashHex.charCodeAt(i);
+  }
   return diff === 0;
 }
 
@@ -79,7 +100,9 @@ export async function makeUnlockCookie(
     ),
   );
   // Path without trailing slash so the cookie also matches the bare /{address} URL.
-  return `${cookieName(address)}=${authVersion}.${exp}.${sig}; Max-Age=${COOKIE_TTL_S}; Path=/${address}; HttpOnly; Secure; SameSite=Lax`;
+  return `${
+    cookieName(address)
+  }=${authVersion}.${exp}.${sig}; Max-Age=${COOKIE_TTL_S}; Path=/${address}; HttpOnly; Secure; SameSite=Lax`;
 }
 
 export async function hasValidUnlockCookie(
@@ -89,7 +112,9 @@ export async function hasValidUnlockCookie(
   authVersion: number,
 ): Promise<boolean> {
   const cookies = req.headers.get("cookie") ?? "";
-  const match = cookies.match(new RegExp(`(?:^|;\\s*)${cookieName(address)}=([^;]+)`));
+  const match = cookies.match(
+    new RegExp(`(?:^|;\\s*)${cookieName(address)}=([^;]+)`),
+  );
   if (!match) return false;
   const parts = match[1].split(".");
   let expStr: string;
@@ -107,7 +132,9 @@ export async function hasValidUnlockCookie(
     return false;
   }
   const exp = parseInt(expStr, 10);
-  if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) return false;
+  if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) {
+    return false;
+  }
   try {
     return await crypto.subtle.verify(
       "HMAC",

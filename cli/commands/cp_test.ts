@@ -3,7 +3,9 @@ import { downloadSource } from "./cp.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    throw new Error(
+      `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    );
   }
 }
 
@@ -14,19 +16,32 @@ Deno.test("cp reconstructs each manifest file and reports the total", async () =
   ]);
   const manifest: Manifest = { v: 1, files: {} };
   for (const [path, bytes] of files) {
-    manifest.files[path] = { h: await sha256hex(bytes), s: bytes.length, ct: "text/plain" };
+    manifest.files[path] = {
+      h: await sha256hex(bytes),
+      s: bytes.length,
+      ct: "text/plain",
+    };
   }
-  const response: SourceResponse = { address: "2a3f", manifestHash: "a".repeat(64), manifest };
-  const byHash = new Map(Object.values(manifest.files).map((entry) => [entry.h, entry]));
+  const response: SourceResponse = {
+    address: "2a3f",
+    manifestHash: "a".repeat(64),
+    manifest,
+  };
+  const byHash = new Map(
+    Object.values(manifest.files).map((entry) => [entry.h, entry]),
+  );
   const output = await Deno.makeTempDir();
 
   try {
     const result = await downloadSource(
       {
-        source: async () => response,
-        downloadSourceBlob: async (_target, hash) => {
+        source: () => Promise.resolve(response),
+        downloadSourceBlob: (_target, hash) => {
           const entry = byHash.get(hash)!;
-          return files.get(Object.entries(manifest.files).find(([, f]) => f === entry)![0])!;
+          const bytes = files.get(
+            Object.entries(manifest.files).find(([, f]) => f === entry)![0],
+          )!;
+          return Promise.resolve(bytes);
         },
       },
       "work:demo",
@@ -34,8 +49,14 @@ Deno.test("cp reconstructs each manifest file and reports the total", async () =
       false,
     );
 
-    assertEquals(await Deno.readTextFile(`${output}/index.html`), "<h1>recovered</h1>\n");
-    assertEquals(await Deno.readTextFile(`${output}/assets/app.js`), "console.log('ok')\n");
+    assertEquals(
+      await Deno.readTextFile(`${output}/index.html`),
+      "<h1>recovered</h1>\n",
+    );
+    assertEquals(
+      await Deno.readTextFile(`${output}/assets/app.js`),
+      "console.log('ok')\n",
+    );
     assertEquals(result, {
       address: "2a3f",
       manifestHash: "a".repeat(64),

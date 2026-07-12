@@ -25,3 +25,5 @@ export * from "./hash.ts";
 export * from "./manifest.ts";
 export * from "./address.ts";
 export * from "./mediatypes.ts";
+export * from "./version.ts";
+export * from "./limits.ts";

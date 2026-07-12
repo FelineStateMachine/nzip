@@ -3,6 +3,8 @@
   "tasks": {
     "check": "deno check cli/main.ts shared/mod.ts",
     "fmt": "deno fmt cli shared",
+    "fmt:check": "deno fmt --check cli shared",
+    "lint": "deno lint cli shared",
     "test": "deno test --allow-read --allow-write cli shared"
   },
   "fmt": { "lineWidth": 100 }

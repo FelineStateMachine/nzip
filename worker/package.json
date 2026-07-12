@@ -7,12 +7,17 @@
     "dev:local": "wrangler dev --config wrangler.local.jsonc",
     "deploy": "wrangler deploy",
     "deploy:local": "wrangler deploy --config wrangler.local.jsonc",
-    "check": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.mjs"
+    "check": "tsc --noEmit && wrangler types --check worker-configuration.d.ts",
+    "test": "npm run test:unit && npm run test:runtime",
+    "test:unit": "node --experimental-strip-types --test test/*.test.mjs",
+    "test:runtime": "vitest run",
+    "types": "wrangler types worker-configuration.d.ts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260708.1",
-    "typescript": "^5.8.0",
-    "wrangler": "^4.0.0"
+    "@cloudflare/vitest-pool-workers": "^0.18.4",
+    "@types/node": "^26.1.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.110.0"
   }
 }

@@ -5,7 +5,7 @@ import { serve } from "../src/serve.ts";
 
 const HASH = "a".repeat(64);
 
-function envFor(files) {
+function envFor(files, siteOverrides = {}) {
   const manifest = new TextEncoder().encode(JSON.stringify({ v: 1, files }));
   const site = {
     address: 0x2f9b,
@@ -17,6 +17,7 @@ function envFor(files) {
     expires_at: null,
     password_hash: null,
     auth_version: 1,
+    ...siteOverrides,
   };
 
   return {
@@ -120,4 +121,56 @@ test("favicon serves the wordmark PNG with a cacheable response", async () => {
   // PNG signature: the embedded icon decoded from base64 intact.
   assert.deepEqual([...bytes.slice(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   assert.ok(bytes.length > 500);
+});
+
+test("unlock requires a declared request size", async () => {
+  const url = new URL("https://n.zip/2f9b/__unlock");
+  const response = await serve(
+    new Request(url, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "password=test",
+    }),
+    envFor({ "index.html": html }, { password_hash: "unused" }),
+    url,
+  );
+
+  assert.equal(response.status, 411);
+});
+
+test("unlock rejects an oversized declared body before password verification", async () => {
+  const url = new URL("https://n.zip/2f9b/__unlock");
+  const response = await serve(
+    new Request(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "content-length": "4097",
+      },
+      body: "password=test",
+    }),
+    envFor({ "index.html": html }, { password_hash: "unused" }),
+    url,
+  );
+
+  assert.equal(response.status, 413);
+});
+
+test("unlock rejects passwords above 256 characters before hashing", async () => {
+  const url = new URL("https://n.zip/2f9b/__unlock");
+  const body = new URLSearchParams({ password: "x".repeat(257) }).toString();
+  const response = await serve(
+    new Request(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "content-length": String(new TextEncoder().encode(body).length),
+      },
+      body,
+    }),
+    envFor({ "index.html": html }, { password_hash: "unused" }),
+    url,
+  );
+
+  assert.equal(response.status, 400);
 });

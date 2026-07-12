@@ -20,7 +20,9 @@ export function assertVaultAllowed(vault: string, config: Config): void {
   if (!config.allowVaults) return; // unset → unrestricted
   if (!config.allowVaults.includes(vault)) {
     const allowed = config.allowVaults.length ? config.allowVaults.join(", ") : "none";
-    throw new Error(`vault "${vault}" is not allowed by this config (allowed: ${allowed})`);
+    throw new Error(
+      `vault "${vault}" is not allowed by this config (allowed: ${allowed})`,
+    );
   }
 }
 

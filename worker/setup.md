@@ -64,7 +64,9 @@ Click the verification link Cloudflare sends, then configure:
 }
 ```
 
-Apply `migrations/0002_security_alerts.sql` before deploying an upgraded Worker.
+Apply `migrations/0002_security_alerts.sql` and
+`migrations/0003_security_notification_outbox.sql` before deploying an upgraded
+Worker.
 After deployment, send a delivery test through the owner-authenticated endpoint:
 
 ```sh
@@ -78,9 +80,11 @@ at least 90% misses. A rate-limit hit or a suspicious live-address hit confirms
 the incident. Duplicate email is suppressed unless severity increases or volume
 doubles, active incidents summarize hourly, and three quiet windows (15 minutes)
 resolve the incident. Probe rows are deduplicated by scanner/address, capped at
-30 per scanner per minute in each Cloudflare location, contain no raw IP, and are
-pruned after seven days. A daily activity digest is sent only when probes
-occurred in the preceding 24 hours.
+30 per scanner per minute in each Cloudflare location; 429 confirmations have a
+separate one-per-minute persistence cap. Alert payloads are written to a D1
+outbox before delivery and retried by later cron runs with a stable notification
+ID. Telemetry contains no raw IP and is pruned after seven days. A daily activity
+digest is sent only when probes occurred in the preceding 24 hours.
 
 ### Operational checks after deployment
 
@@ -104,6 +108,7 @@ apply its migration before deploying the new Worker:
 cd worker
 npx wrangler d1 execute nzip --remote --file migrations/0001_auth_version.sql
 npx wrangler d1 execute nzip --remote --file migrations/0002_security_alerts.sql
+npx wrangler d1 execute nzip --remote --file migrations/0003_security_notification_outbox.sql
 ```
 
 > **Cron gotcha:** deploying the `triggers` block fails with a 403 (API error

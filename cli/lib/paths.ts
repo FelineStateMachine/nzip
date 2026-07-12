@@ -67,7 +67,10 @@ export async function recordPush(entry: {
   // entry that still claims this vault:alias under a different address.
   if (entry.vault && entry.alias) {
     for (const [addr, e] of Object.entries(reg)) {
-      if (addr !== entry.address && e.vault === entry.vault && e.alias === entry.alias) {
+      if (
+        addr !== entry.address && e.vault === entry.vault &&
+        e.alias === entry.alias
+      ) {
         delete reg[addr];
       }
     }
@@ -126,7 +129,10 @@ export async function forget(
  * addresses returned by the API; when `scopeVault` is set only entries in
  * that vault are eligible for removal (the listing was vault-scoped).
  */
-export async function reconcile(live: Set<string>, scopeVault?: string): Promise<void> {
+export async function reconcile(
+  live: Set<string>,
+  scopeVault?: string,
+): Promise<void> {
   const reg = pruneExpired(await load());
   let changed = false;
   for (const [addr, e] of Object.entries(reg)) {

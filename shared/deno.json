@@ -1,7 +1,8 @@
 {
   "name": "@nzip/shared",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "description": "Runtime-agnostic contract for nzip: manifest canonicalization, content hashing, and address parsing shared by the nzip CLI and Worker.",
-  "exports": "./mod.ts"
+  "exports": "./mod.ts",
+  "publish": { "exclude": ["**/*.test.ts", "**/*.test.mts", "**/*_test.ts"] }
 }
