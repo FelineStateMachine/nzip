@@ -1,24 +1,29 @@
 ---
 name: nzip
-description: Set up, diagnose, and use the nzip HTML sharing CLI with repository-local working directories and safe publishing defaults. Use when installing or authenticating nzip, troubleshooting nzip access, publishing or managing an HTML artifact, pairing notification devices, sending or managing owner notifications, or establishing nzip conventions in a repository.
+description: Install, authenticate, diagnose, and use the nzip HTML sharing CLI with safe publishing defaults. Use when installing nzip from JSR for a user, troubleshooting nzip access, publishing or managing an HTML artifact, pairing notification devices, sending or managing owner notifications, or establishing repository-local artifact conventions.
 ---
 
 # nzip
 
-Use nzip to publish HTML while keeping the editable source beside the repository context that
-produced it. Diagnose the local installation before guessing about unavailable access.
+Use the user-installed nzip CLI to publish HTML. Diagnose the local installation before guessing
+about unavailable access. Keep editable artifact source beside its repository context when one
+exists, but do not clone or download the nzip repository merely to install the CLI.
 
 ## Setup
 
-1. Locate the repository root with `git rev-parse --show-toplevel` when inside a Git repository.
-2. Check for the CLI with `command -v nzip` and `nzip --help`.
-3. If it is missing and Deno is available, install or upgrade it:
+1. Check for the user CLI with `command -v nzip` and `nzip --help`.
+2. If it is missing and Deno is available, install the latest JSR release globally:
 
    ```sh
    deno install -g -A -f -n nzip jsr:@nzip/cli
    ```
 
-4. Authenticate only with a server and token supplied by the user or environment:
+   Use the same command to upgrade an existing user installation when the user requests an upgrade
+   or the installed CLI lacks a command required by the task. Do not clone the nzip repository or
+   run its source checkout as the normal installation path. Pin `jsr:@nzip/cli@<version>` only when
+   reproducibility is explicitly required.
+
+3. Authenticate only with a server and token supplied by the user or environment:
 
    ```sh
    nzip auth --server <url> --token <token>
@@ -30,7 +35,14 @@ produced it. Diagnose the local installation before guessing about unavailable a
    requires a TTY: in a non-interactive run, omitting `--token` fails instead of prompting, so ask
    the user to run `nzip auth` themselves. Never print, commit, or invent the token.
 
-5. Ensure the repository `.gitignore` contains this exact rule:
+## Prepare an artifact workspace
+
+Only perform these repository steps when creating or revising a local artifact:
+
+1. Locate the repository root with `git rev-parse --show-toplevel` when inside a Git repository.
+   Otherwise, use a user-approved working directory; do not download a repository just to obtain
+   one.
+2. Ensure the repository `.gitignore` contains this exact rule:
 
    ```gitignore
    .nzip-*/
@@ -45,8 +57,8 @@ produced it. Diagnose the local installation before guessing about unavailable a
 
 Run checks in this order and stop at the first failure that needs user input:
 
-1. `command -v nzip` — if missing, follow Setup.
-2. `nzip --help` — confirm the installed command starts.
+1. `command -v nzip` — if missing, follow the JSR installation in Setup.
+2. `nzip --help` — confirm the installed command starts and inspect its supported command surface.
 3. `nzip status --json` — verify saved authentication, server reachability, and token validity.
 4. `nzip vault ls --json` — verify available vaults and the default vault.
 

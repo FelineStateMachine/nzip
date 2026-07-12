@@ -1,4 +1,4 @@
 interface:
   display_name: "nzip"
-  short_description: "Set up, publish, and manage nzip safely"
-  default_prompt: "Use $nzip to set up or diagnose the CLI, publish an HTML artifact, or manage owner notifications safely."
+  short_description: "Install, publish, and manage nzip safely"
+  default_prompt: "Use $nzip to install or diagnose the user CLI from JSR, publish an HTML artifact, or manage owner notifications safely."

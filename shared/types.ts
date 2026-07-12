@@ -1,25 +1,37 @@
 // Wire types shared by the CLI and the Worker.
 // This package must stay runtime-agnostic: Web APIs only, no Deno.* or Workers globals.
 
-/** A single file entry in a manifest. Keys are kept short because they're hashed verbatim. */
+/**
+ * Canonical metadata for one file in a manifest.
+ *
+ * The short property names are part of the version 1 wire format and are
+ * hashed verbatim when deriving the manifest identity.
+ */
 export interface ManifestFile {
-  /** sha256 hex of the file bytes */
+  /** Lowercase, 64-character SHA-256 digest of the exact file bytes. */
   h: string;
-  /** size in bytes */
+  /** Non-negative file size in bytes. */
   s: number;
-  /** content-type, resolved at push time by the CLI */
+  /** Media type stored and served for the file, resolved by the CLI at push time. */
   ct: string;
 }
 
-/** A push's complete file set — the content-addressed description of a site version. */
+/** Complete, versioned file map whose canonical bytes identify one site revision. */
 export interface Manifest {
-  /** manifest format version */
+  /** Manifest schema version. Version `1` is the only supported value. */
   v: 1;
-  /** path (relative, forward slashes, no leading ./) → file entry */
+  /**
+   * Map from validated relative paths to file metadata.
+   *
+   * Paths use forward slashes and omit a leading slash or `./`.
+   */
   files: Record<string, ManifestFile>;
 }
 
-/** A push destination: a raw address, or a vault (optionally with an alias). */
+/**
+ * Destination for a push, expressed as either an exact numeric address or a
+ * registered vault with an optional alias.
+ */
 export type Target =
   | {
     /** Numeric site address in the inclusive range `0x0000`–`0xffff`. */
@@ -38,11 +50,11 @@ export interface PrepareRequest {
   manifest: Manifest;
 }
 
-/** Reply to `prepare`: the manifest's hash and which blobs the server still needs. */
+/** Reply from `POST /api/push/prepare` describing the content still required. */
 export interface PrepareResponse {
   /** Lowercase SHA-256 of the canonical manifest bytes. */
   manifestHash: string;
-  /** blob hashes the server does not have yet */
+  /** Lowercase SHA-256 blob digests that must be uploaded before committing. */
   missing: string[];
 }
 
@@ -52,15 +64,15 @@ export interface CommitRequest {
   manifest: Manifest;
   /** Address or vault destination that should receive the new version. */
   target: Target;
-  /** days until expiry; "forever" = no expiry; omitted = server default (14) */
+  /** Lifetime in days, `"forever"` for no expiry, or omitted for the server default. */
   ttl?: number | "forever";
-  /** set a password (string), clear it (null), or preserve it on an existing site (undefined) */
+  /** Password to set, `null` to clear it, or omitted to preserve an existing value. */
   password?: string | null;
 }
 
-/** Reply to `commit`: the allocated address and the live URL for the new push. */
+/** Reply from `POST /api/push/commit` identifying the published site revision. */
 export interface CommitResponse {
-  /** 4-hex address, e.g. "2a3f" */
+  /** Four-character lowercase hexadecimal address, such as `"2a3f"`. */
   address: string;
   /** Absolute public URL of the committed site. */
   url: string;
@@ -68,13 +80,13 @@ export interface CommitResponse {
   alias: string | null;
   /** Lowercase SHA-256 of the committed canonical manifest. */
   manifestHash: string;
-  /** unix seconds, null = permanent */
+  /** Unix expiry timestamp in seconds, or `null` for a permanent site. */
   expiresAt: number | null;
-  /** push sequence number for this site */
+  /** Monotonically increasing push sequence number within this site. */
   seq: number;
 }
 
-/** Summary of a single site, as returned by list/status endpoints. */
+/** Owner-visible summary of one site, as returned by list and status endpoints. */
 export interface SiteInfo {
   /** Four-character lowercase hexadecimal site address. */
   address: string;
@@ -114,7 +126,10 @@ export interface SiteDetail extends SiteInfo {
   history: PushInfo[];
 }
 
-/** Current uploaded bundle for a site, returned only by the authenticated recovery API. */
+/**
+ * Current manifest for a site, returned only by the authenticated recovery
+ * API and used to locate and verify the bundle's blobs.
+ */
 export interface SourceResponse {
   /** Four-character lowercase hexadecimal address of the recovered site. */
   address: string;
@@ -124,7 +139,7 @@ export interface SourceResponse {
   manifest: Manifest;
 }
 
-/** A registered vault: its slot, name, and current site count. */
+/** Owner-visible metadata and live site count for a registered vault. */
 export interface VaultInfo {
   /** Numeric vault slot in the inclusive range `0x0`–`0xf`. */
   slot: number;
@@ -148,7 +163,7 @@ export interface StatusResponse {
   vaults: VaultInfo[];
   /** Total number of currently registered sites across every vault. */
   siteCount: number;
-  /** sites expiring within 48h */
+  /** Number of sites whose expiry falls within the next 48 hours. */
   expiringSoon: number;
 }
 
@@ -158,11 +173,11 @@ export interface RevertRequest {
   toSeq?: number;
 }
 
-/** Body of a site PATCH: change TTL and/or password. Omitted fields are left unchanged. */
+/** Body of a site PATCH. Omitted access-policy fields remain unchanged. */
 export interface PatchSiteRequest {
   /** New lifetime in days, or `"forever"`; omission preserves the current expiry. */
   ttl?: number | "forever";
-  /** set a password (string), clear it (null), or leave unchanged (undefined) */
+  /** Password to set, `null` to clear it, or omitted to leave it unchanged. */
   password?: string | null;
 }
 
@@ -178,13 +193,22 @@ export interface NotifyRequest {
   title?: string;
   /** Required notification body. */
   body: string;
-  /** Optional normalized, same-origin path opened when the notification is tapped. */
+  /**
+   * Optional normalized, same-origin site path opened when the notification is
+   * tapped. A site target is pinned to its current manifest when accepted and
+   * will not open if that site changes before the tap.
+   */
   path?: string;
-  /** Optional provider-independent replacement/deduplication tag. */
+  /** Optional provider-independent tag used to replace a related notification. */
   tag?: string;
 }
 
-/** Reply from `POST /api/notify`; acceptance does not imply delivery. */
+/**
+ * Reply from `POST /api/notify` after durable outbox acceptance.
+ *
+ * Acceptance confirms that eligible deliveries were queued; it does not imply
+ * that a push provider or device displayed the notification.
+ */
 export interface NotifyResponse {
   /** Stable identifier for the persisted notification event. */
   eventId: string;
@@ -194,7 +218,10 @@ export interface NotifyResponse {
   inactiveDevices: number;
 }
 
-/** Current owner-controlled window during which new notification devices may enroll. */
+/**
+ * Current owner-controlled window during which new notification devices may
+ * request enrollment. An opened window closes automatically after ten minutes.
+ */
 export interface NotifyPairingWindow {
   /** Whether the Worker currently accepts new enrollment requests. */
   enabled: boolean;
@@ -202,7 +229,13 @@ export interface NotifyPairingWindow {
   expiresAt: number | null;
 }
 
-/** Server-side lifecycle state for an owner-approved notification device. */
+/**
+ * Server-side lifecycle state for a notification device.
+ *
+ * Devices progress from `pending` enrollment to `approved`, then `active` once
+ * a subscription is attached. `disabled`, `revoked`, and `expired` are
+ * non-deliverable states.
+ */
 export type NotifyDeviceStatus =
   | "pending"
   | "approved"
@@ -213,7 +246,7 @@ export type NotifyDeviceStatus =
 
 /** Owner-visible notification device metadata. Subscription secrets are never returned. */
 export interface NotifyDeviceInfo {
-  /** Opaque stable identifier used for revocation. */
+  /** Opaque, stable identifier used for owner actions such as revocation. */
   id: string;
   /** Owner-assigned display name, or `null` while pairing is pending. */
   name: string | null;
@@ -223,7 +256,7 @@ export interface NotifyDeviceInfo {
   userAgentSummary: string | null;
   /** Coarse device class such as phone, tablet, or desktop. */
   deviceClass: string | null;
-  /** Two-letter country code reported by the edge, when available. */
+  /** Two-letter ISO 3166-1 country code reported by the edge, when available. */
   country: string | null;
   /** Bounded region code reported by the edge, when available. */
   region: string | null;
@@ -231,19 +264,19 @@ export interface NotifyDeviceInfo {
   asn: number | null;
   /** Unix timestamp, in seconds, when enrollment began. */
   createdAt: number;
-  /** Unix expiry for an unapproved pairing code, or `null` once inapplicable. */
+  /** Unix expiry timestamp for an unapproved pairing code, or `null` once inapplicable. */
   pairingExpiresAt: number | null;
-  /** Unix expiry for the approved claim, or `null` when unavailable. */
+  /** Unix expiry timestamp for an approved claim, or `null` when inapplicable. */
   claimExpiresAt: number | null;
-  /** Unix timestamp of owner approval, or `null` before approval. */
+  /** Unix timestamp, in seconds, of owner approval, or `null` before approval. */
   approvedAt: number | null;
-  /** Unix timestamp of first active subscription attachment, or `null`. */
+  /** Unix timestamp, in seconds, of first subscription attachment, or `null` before it. */
   activeAt: number | null;
-  /** Unix timestamp of the most recent subscription attachment, or `null`. */
+  /** Unix timestamp, in seconds, of the latest attachment, or `null` if never attached. */
   lastAttachedAt: number | null;
-  /** Unix timestamp of the most recent validated device request, or `null`. */
+  /** Unix timestamp, in seconds, of the latest validated request, or `null` if unseen. */
   lastSeenAt: number | null;
-  /** Unix timestamp of the most recent successful Web Push delivery, or `null`. */
+  /** Unix timestamp, in seconds, of the latest successful delivery, or `null` if none. */
   lastSuccessAt: number | null;
   /** Bounded error class only; provider responses and subscription material are excluded. */
   lastError: string | null;
@@ -257,7 +290,7 @@ export interface NotifyApprovalPreview {
   userAgentSummary: string | null;
   /** Coarse device class such as phone, tablet, or desktop. */
   deviceClass: string | null;
-  /** Two-letter country code reported by the edge, when available. */
+  /** Two-letter ISO 3166-1 country code reported by the edge, when available. */
   country: string | null;
   /** Bounded region code reported by the edge, when available. */
   region: string | null;
