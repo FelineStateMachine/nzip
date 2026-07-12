@@ -24,12 +24,15 @@ your `PATH`:
 
 ```sh
 deno install -g -A -f -n nzip jsr:@nzip/cli
+nzip --version
 nzip auth --server https://share.demo.dev
 nzip site push ./site work:demo
 ```
 
 `nzip auth` prompts for omitted values and saves configuration to `~/.config/nzip/config.json` with
-mode 0600. Try the CLI without installing it with `deno run -A jsr:@nzip/cli --help`.
+mode 0600. `nzip --version` reports the installed JSR release without requiring authentication; add
+`--json` for machine-readable output. Try the CLI without installing it with
+`deno run -A jsr:@nzip/cli --help`.
 
 On another machine, install the CLI and authenticate with the same server and token. Hosted vaults
 and sites are already available; only the `nzip site where` breadcrumb registry is machine-local.
@@ -77,6 +80,7 @@ Aliases such as `work:demo` are resolved by the authenticated API; public URLs d
 
 ```text
 nzip
+├─ --version [--json]                     show the installed CLI version
 ├─ auth [--server URL] [--token T]       authenticate and save config
 ├─ status                                show server and vault status
 ├─ vault

@@ -17,6 +17,7 @@
 // nzip — push HTML and get a tiny URL back.
 
 import { parseArgs } from "@std/cli/parse-args";
+import { VERSION } from "@nzip/shared";
 import { cmdAuth } from "./commands/auth.ts";
 import { cmdNotify } from "./commands/notify.ts";
 import { cmdSiteGroup } from "./commands/site.ts";
@@ -26,6 +27,10 @@ import { requireConfig } from "./lib/config.ts";
 import { fail, setJsonMode } from "./lib/fmt.ts";
 
 const HELP = `nzip — html share tool
+
+global:
+  nzip --help                              show this command guide
+  nzip --version [--json]                  show the installed CLI version
 
 commands:
   nzip
@@ -65,8 +70,8 @@ notification privacy: titles and bodies may appear on a lock screen; never inclu
 passwords, tokens, private URLs, or sensitive personal data.
 `;
 
-async function main(): Promise<void> {
-  const args = parseArgs(Deno.args, {
+export async function main(argv = Deno.args): Promise<void> {
+  const args = parseArgs(argv, {
     string: [
       "ttl",
       "to",
@@ -84,16 +89,22 @@ async function main(): Promise<void> {
       "yes",
       "list",
       "help",
+      "version",
       "no-password",
       "overwrite",
       "json",
       "no-description",
       "all",
     ],
-    alias: { h: "help", y: "yes" },
+    alias: { h: "help", V: "version", y: "yes" },
   });
   setJsonMode(args.json);
   const [command, ...rest] = args._.map(String);
+
+  if (args.version) {
+    console.log(args.json ? JSON.stringify({ version: VERSION }) : `nzip ${VERSION}`);
+    return;
+  }
 
   if (args.help || !command) {
     console.log(HELP);
