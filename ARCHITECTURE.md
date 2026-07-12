@@ -6,16 +6,15 @@ identically.
 
 ## Components
 
-```text
-                      bearer-authenticated API
-Deno CLI ------------------------------------------------> Worker
-                                                             |
-visitor -> Workers Cache -> Worker                            |
-              | hit          | miss                           |
-              +--------------+--------------------------------+
-                             |                    |
-                             v                    v
-                       R2 blobs/manifests    D1 state/history
+```mermaid
+flowchart LR
+    CLI["nzip Deno CLI"] -- "bearer-authenticated API" --> W["nzip Worker"]
+    V(["visitor"]) -- "GET /2a3f" --> C{"Workers Cache"}
+    C -- "hit" --> V
+    C -- "miss or bypass" --> W
+    W -- "tagged public response" --> C
+    W --> R2[("R2 blobs and manifests")]
+    W --> D1[("D1 state and history")]
 ```
 
 - `shared/` defines manifests, hashing, target parsing, limits, media types, and API contracts.
@@ -74,6 +73,43 @@ Security and notification state:
 An R2 object is deleted only when no live site or retained history entry references it and it is
 older than 24 hours. This prevents concurrent garbage collection from deleting an in-flight push.
 
+## Notification flow
+
+Notification setup separates enrollment, owner approval, and subscription attachment. Delivery is
+also asynchronous: the owner request persists an event and per-device attempts before background
+work contacts a Web Push provider.
+
+```mermaid
+flowchart LR
+    subgraph Pairing
+        OWNER["owner CLI"] -- "notify pair" --> WINDOW[("10-minute pairing window")]
+        PHONE["phone browser"] -- "begin enrollment" --> PENDING[("pending device and code hash")]
+        WINDOW --> PENDING
+        PENDING -- "display code" --> PHONE
+        OWNER -- "approve code" --> APPROVED[("approved device claim")]
+        PENDING --> APPROVED
+        APPROVED -- "activate claim" --> PWA["installed PWA"]
+        PWA -- "attach PushSubscription" --> ACTIVE[("active device")]
+    end
+
+    subgraph Delivery
+        OWNER -- "notify send" --> API["owner notification API"]
+        API --> EVENT[("event and per-device deliveries")]
+        EVENT --> DRAIN["scheduled delivery drain"]
+        ACTIVE --> DRAIN
+        DRAIN --> PUSH["allowed Web Push provider"]
+        PUSH --> SW["service worker"]
+        SW --> NOTICE["system notification"]
+        NOTICE -- "tap" --> TARGET["claim-authenticated click target"]
+        TARGET --> SITE["root or manifest-pinned site"]
+    end
+```
+
+Pairing codes cannot approve themselves; the approval path always requires the owner bearer token.
+Subscription endpoints must match the configured provider-origin allowlist. Notification click
+targets are resolved at tap time and open only the deployment root or the unchanged site manifest
+recorded with the event.
+
 ## Background work
 
 The five-minute schedule evaluates enumeration windows and drains notification deliveries. The daily
@@ -85,14 +121,18 @@ leases, bounded retry schedules, and terminal outcomes so overlapping cron execu
 
 ## Observability
 
-```text
-Worker response -> classify request -> deterministic scanner sample -> Workers Logs
-                                  |
-                                  +-> bounded D1 probe windows
-                                             |
-                                      five-minute evaluator
-                                             |
-                                  incident log + durable email outbox
+```mermaid
+flowchart LR
+    RESP["Worker response"] --> CLASSIFY["classify security-relevant request"]
+    CLASSIFY --> SAMPLE{"deterministic scanner sample"}
+    SAMPLE -- "selected" --> LOGS["Workers Logs"]
+    SAMPLE -- "not selected" --> DROP["no log event"]
+    PROBES[("bounded D1 probe windows")] --> CRON["five-minute evaluator"]
+    CRON --> WINDOW["security.enumeration_window"]
+    CRON --> OUTBOX[("durable alert outbox")]
+    LOGS --> DASH["Cloudflare Observability"]
+    WINDOW --> DASH
+    PROBES --> METRICS["D1 row metrics"]
 ```
 
 Workers Logs provide sampled request-level context. D1 probe windows remain bounded but unsampled

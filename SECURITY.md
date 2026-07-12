@@ -42,14 +42,23 @@ pending pages do not expose a second enrollment action.
 The address space is intentionally small, so nzip observes and limits enumeration rather than
 claiming addresses are unguessable.
 
-```text
-request -> surface classifier -> per-surface limiter -> serve or owner API
-             |
-             +-> HMAC scanner identity -> bounded D1 probe window
-                                                |
-                                         incident evaluator
-                                                |
-                                    durable email outbox -> operator
+```mermaid
+flowchart LR
+    REQ(["request"]) --> SURFACE{"request surface"}
+    SURFACE -- "/api/*" --> TOKEN["bearer-token check"]
+    SURFACE -- "GET /xxxx" --> ENUM["enumeration limiter"]
+    SURFACE -- "POST /xxxx/__unlock" --> UNLOCK["password limiter"]
+    TOKEN --> API["owner API"]
+    ENUM --> SERVE["site lookup and serve"]
+    UNLOCK --> SERVE
+    SERVE --> GATE{"password protected?"}
+    GATE -- "yes" --> COOKIE["PBKDF2 and signed cookie"]
+    GATE -- "no" --> PUBLIC["public response"]
+    ENUM -. "HMAC scanner identity" .-> PROBES[("bounded D1 probe windows")]
+    PROBES --> EVAL["five-minute incident evaluator"]
+    EVAL --> OUTBOX[("durable email outbox")]
+    OUTBOX --> EMAIL["verified-destination email"]
+    EMAIL --> INBOX(["operator inbox"])
 ```
 
 Raw client IPs are neither logged nor stored. Scanner identities are HMAC-derived. Probe rows are
