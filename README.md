@@ -122,6 +122,9 @@ flowchart LR
 
 ### Security lens
 
+<details>
+<summary>View the security request and alert flow</summary>
+
 ```mermaid
 flowchart LR
     REQ(["request"]) --> SURFACE{"request surface"}
@@ -142,7 +145,12 @@ flowchart LR
     EMAIL --> INBOX(["operator inbox"])
 ```
 
+</details>
+
 ### Observability lens
+
+<details>
+<summary>View the logging and metrics flow</summary>
 
 ```mermaid
 flowchart LR
@@ -159,6 +167,8 @@ flowchart LR
     WINDOW --> DASH
     PROBES --> METRICS["D1 row metrics"]
 ```
+
+</details>
 
 <details>
 <summary>Protocol, caching, and storage details</summary>
