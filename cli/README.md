@@ -24,10 +24,10 @@ deno run -A jsr:@nzip/cli --help
 ## Use
 
 ```sh
-nzip auth --server https://share.example.com   # authenticate (prompts for the token)
+nzip auth --server https://share.demo.dev   # authenticate (prompts for the token)
 nzip vault add work                            # register a named vault
 nzip site push ./site work:demo --ttl 30d --password secret
-                                                # → https://share.example.com/12d8
+                                                # → https://share.demo.dev/12d8
 ```
 
 Config is saved to `~/.config/nzip/config.json` (mode 0600), so later commands just work. On a
@@ -39,6 +39,7 @@ and site is already there.
 ```text
 nzip
 ├─ auth [--server URL] [--token T]       authenticate and save config
+├─ status                                show server and vault status
 ├─ vault
 │  ├─ add <name> [--slot N] [--description TEXT]
 │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
@@ -53,7 +54,6 @@ nzip
 │  ├─ where <target>                     print this machine's source directory
 │  ├─ rm <target> [--yes]                delete a site
 │  └─ revert <target> [--to N] [--list]  inspect or restore push history
-├─ status                                show server and vault status
 └─ notify
    ├─ send <body> [--title TEXT] [--open TARGET] [--tag TEXT]
    ├─ test                               send a diagnostic notification
@@ -96,5 +96,6 @@ notification delivery path. Use `nzip notify revoke <device-id> --yes` to remove
 Notification content may appear on a lock screen. Never include passwords, tokens, private URLs, or
 sensitive personal data in a title or body.
 
-See the [project README](https://github.com/FelineStateMachine/nzip) for how addresses work,
-self-hosting setup, and architecture. MIT licensed.
+See the [project README](../README.md) for how addresses work, the
+[deployment runbook](../worker/setup.md) for self-hosting, and [ARCHITECTURE.md](../ARCHITECTURE.md)
+for internals. MIT licensed.

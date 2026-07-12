@@ -88,6 +88,7 @@ Prefer `--json` when consuming command output programmatically.
 ```text
 nzip
 ├─ auth [--server URL] [--token T]
+├─ status
 ├─ vault
 │  ├─ add <name> [--slot N] [--description TEXT]
 │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
@@ -102,7 +103,6 @@ nzip
 │  ├─ where <target>
 │  ├─ rm <target> [--yes]
 │  └─ revert <target> [--to N] [--list]
-├─ status
 └─ notify
    ├─ send <body> [--title TEXT] [--open TARGET] [--tag TEXT]
    ├─ test

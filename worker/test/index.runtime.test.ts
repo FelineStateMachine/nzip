@@ -5,7 +5,7 @@ import { hashPassword, verifyPassword } from "../src/password.ts";
 
 describe("Worker runtime", () => {
   it("serves the landing page with public cache headers", async () => {
-    const response = await SELF.fetch("https://share.example.com/");
+    const response = await SELF.fetch("https://share.demo.dev/");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
@@ -15,7 +15,7 @@ describe("Worker runtime", () => {
   });
 
   it("keeps the root shell claim-independent and hides pairing by default", async () => {
-    const response = await SELF.fetch("https://share.example.com/");
+    const response = await SELF.fetch("https://share.demo.dev/");
     const html = await response.text();
 
     expect(response.headers.get("set-cookie")).toBeNull();
@@ -30,24 +30,24 @@ describe("Worker runtime", () => {
 
   it("rejects enrollment until the owner opens a pairing window", async () => {
     const browserHeaders = {
-      origin: "https://share.example.com",
+      origin: "https://share.demo.dev",
       "sec-fetch-site": "same-origin",
       "content-type": "application/json",
     };
-    const status = await SELF.fetch("https://share.example.com/_notify/pairing", {
+    const status = await SELF.fetch("https://share.demo.dev/_notify/pairing", {
       headers: { "sec-fetch-site": "same-origin" },
     });
     expect(status.status).toBe(200);
     expect(await status.json()).toEqual({ enabled: false, expiresAt: null });
 
     const enrolled = await SELF.fetch(
-      "https://share.example.com/_notify/enrollments",
+      "https://share.demo.dev/_notify/enrollments",
       { method: "POST", headers: browserHeaders, body: "{}" },
     );
     expect(enrolled.status).toBe(404);
     expect(await enrolled.json()).toEqual({ error: "pairing unavailable" });
 
-    const crossOrigin = await SELF.fetch("https://share.example.com/_notify/pairing", {
+    const crossOrigin = await SELF.fetch("https://share.demo.dev/_notify/pairing", {
       headers: {
         origin: "https://attacker.example",
         "sec-fetch-site": "cross-site",
@@ -55,7 +55,7 @@ describe("Worker runtime", () => {
     });
     expect(crossOrigin.status).toBe(403);
 
-    await SELF.fetch("https://share.example.com/api/notify/pairing", {
+    await SELF.fetch("https://share.demo.dev/api/notify/pairing", {
       method: "POST",
       headers: {
         authorization: "Bearer runtime-test-token",
@@ -67,7 +67,7 @@ describe("Worker runtime", () => {
       "UPDATE notification_pairing_window SET enabled_until = 0 WHERE id = 1",
     ).run();
     const expired = await SELF.fetch(
-      "https://share.example.com/_notify/enrollments",
+      "https://share.demo.dev/_notify/enrollments",
       { method: "POST", headers: browserHeaders, body: "{}" },
     );
     expect(expired.status).toBe(404);
@@ -75,7 +75,7 @@ describe("Worker runtime", () => {
 
   it("enrolls, previews, approves, and activates while delivery is disabled", async () => {
     const browserHeaders = {
-      origin: "https://share.example.com",
+      origin: "https://share.demo.dev",
       "sec-fetch-site": "same-origin",
       "content-type": "application/json",
       "user-agent": "runtime mobile browser",
@@ -85,18 +85,18 @@ describe("Worker runtime", () => {
       "content-type": "application/json",
     };
     const opened = await SELF.fetch(
-      "https://share.example.com/api/notify/pairing",
+      "https://share.demo.dev/api/notify/pairing",
       { method: "POST", headers: ownerHeaders, body: "{}" },
     );
     expect(opened.status).toBe(200);
     expect(await opened.json()).toMatchObject({ enabled: true });
-    const pairing = await SELF.fetch("https://share.example.com/_notify/pairing", {
+    const pairing = await SELF.fetch("https://share.demo.dev/_notify/pairing", {
       headers: { "sec-fetch-site": "same-origin" },
     });
     expect(await pairing.json()).toMatchObject({ enabled: true });
 
     const enrolled = await SELF.fetch(
-      "https://share.example.com/_notify/enrollments",
+      "https://share.demo.dev/_notify/enrollments",
       { method: "POST", headers: browserHeaders, body: "{}" },
     );
     expect(enrolled.status).toBe(201);
@@ -108,7 +108,7 @@ describe("Worker runtime", () => {
     expect(enrollment.code).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
 
     const preview = await SELF.fetch(
-      `https://share.example.com/api/notify/approvals/${enrollment.code}`,
+      `https://share.demo.dev/api/notify/approvals/${enrollment.code}`,
       { headers: ownerHeaders },
     );
     expect(preview.status).toBe(200);
@@ -118,7 +118,7 @@ describe("Worker runtime", () => {
     });
 
     const approved = await SELF.fetch(
-      "https://share.example.com/api/notify/approvals",
+      "https://share.demo.dev/api/notify/approvals",
       {
         method: "POST",
         headers: ownerHeaders,
@@ -132,7 +132,7 @@ describe("Worker runtime", () => {
     });
 
     const activated = await SELF.fetch(
-      "https://share.example.com/_notify/enrollments/activate",
+      "https://share.demo.dev/_notify/enrollments/activate",
       {
         method: "POST",
         headers: { ...browserHeaders, cookie: cookie! },
@@ -146,7 +146,7 @@ describe("Worker runtime", () => {
     });
 
     const disabledSend = await SELF.fetch(
-      "https://share.example.com/api/notify",
+      "https://share.demo.dev/api/notify",
       {
         method: "POST",
         headers: ownerHeaders,
@@ -158,12 +158,12 @@ describe("Worker runtime", () => {
 
   it("serves install assets with explicit content and cache policies", async () => {
     const manifest = await SELF.fetch(
-      "https://share.example.com/_notify/app.webmanifest",
+      "https://share.demo.dev/_notify/app.webmanifest",
     );
     const serviceWorker = await SELF.fetch(
-      "https://share.example.com/_notify/sw.js",
+      "https://share.demo.dev/_notify/sw.js",
     );
-    const icon = await SELF.fetch("https://share.example.com/_notify/icon.svg");
+    const icon = await SELF.fetch("https://share.demo.dev/_notify/icon.svg");
 
     expect(manifest.headers.get("content-type")).toContain(
       "application/manifest+json",
@@ -177,7 +177,7 @@ describe("Worker runtime", () => {
   });
 
   it("rejects unauthenticated API requests before touching storage", async () => {
-    const response = await SELF.fetch("https://share.example.com/api/status");
+    const response = await SELF.fetch("https://share.demo.dev/api/status");
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "unauthorized" });
@@ -192,7 +192,7 @@ describe("Worker runtime", () => {
   });
 
   it("routes authenticated status requests with the shared release version", async () => {
-    const response = await SELF.fetch("https://share.example.com/api/status", {
+    const response = await SELF.fetch("https://share.demo.dev/api/status", {
       headers: { authorization: "Bearer runtime-test-token" },
     });
 
@@ -205,7 +205,7 @@ describe("Worker runtime", () => {
       authorization: "Bearer runtime-test-token",
       "content-type": "application/json",
     };
-    const created = await SELF.fetch("https://share.example.com/api/vaults", {
+    const created = await SELF.fetch("https://share.demo.dev/api/vaults", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -221,7 +221,7 @@ describe("Worker runtime", () => {
     });
 
     const updated = await SELF.fetch(
-      "https://share.example.com/api/vaults/agent-work",
+      "https://share.demo.dev/api/vaults/agent-work",
       {
         method: "PATCH",
         headers,
@@ -237,13 +237,13 @@ describe("Worker runtime", () => {
       description: "Human review links; safe to share with collaborators",
     });
 
-    const listed = await SELF.fetch("https://share.example.com/api/vaults", { headers });
+    const listed = await SELF.fetch("https://share.demo.dev/api/vaults", { headers });
     expect(await listed.json()).toContainEqual(expect.objectContaining({
       name: "reviews",
       description: "Human review links; safe to share with collaborators",
     }));
 
-    const cleared = await SELF.fetch("https://share.example.com/api/vaults/reviews", {
+    const cleared = await SELF.fetch("https://share.demo.dev/api/vaults/reviews", {
       method: "PATCH",
       headers,
       body: JSON.stringify({ description: "" }),
@@ -251,7 +251,7 @@ describe("Worker runtime", () => {
     expect(cleared.status).toBe(200);
     expect(await cleared.json()).toMatchObject({ name: "reviews", description: null });
 
-    const clearedWithNull = await SELF.fetch("https://share.example.com/api/vaults/reviews", {
+    const clearedWithNull = await SELF.fetch("https://share.demo.dev/api/vaults/reviews", {
       method: "PATCH",
       headers,
       body: JSON.stringify({ description: null }),
@@ -259,14 +259,14 @@ describe("Worker runtime", () => {
     expect(clearedWithNull.status).toBe(200);
     expect(await clearedWithNull.json()).toMatchObject({ name: "reviews", description: null });
 
-    const multiline = await SELF.fetch("https://share.example.com/api/vaults/reviews", {
+    const multiline = await SELF.fetch("https://share.demo.dev/api/vaults/reviews", {
       method: "PATCH",
       headers,
       body: JSON.stringify({ description: "line1\nline2" }),
     });
     expect(multiline.status).toBe(400);
 
-    const badEncoding = await SELF.fetch("https://share.example.com/api/vaults/%zz", {
+    const badEncoding = await SELF.fetch("https://share.demo.dev/api/vaults/%zz", {
       method: "PATCH",
       headers,
       body: JSON.stringify({ description: "x" }),

@@ -8,7 +8,7 @@
  *
  * ```sh
  * deno install -g -A -f -n nzip jsr:@nzip/cli
- * nzip auth --server https://share.example.com
+ * nzip auth --server https://share.demo.dev
  * nzip site push ./site work:demo
  * ```
  *
@@ -30,6 +30,7 @@ const HELP = `nzip — html share tool
 commands:
   nzip
   ├─ auth [--server URL] [--token T]       authenticate against the server
+  ├─ status                                show server and vault status
   ├─ vault
   │  ├─ add <name> [--slot N] [--description TEXT]
   │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
@@ -44,7 +45,6 @@ commands:
   │  ├─ where <target>                     print this machine's source directory
   │  ├─ rm <target> [--yes]                delete a site
   │  └─ revert <target> [--to N] [--list]  inspect or restore push history
-  ├─ status                                show server and vault status
   └─ notify
      ├─ send <body> [--title TEXT] [--open TARGET] [--tag TEXT]
      ├─ test                               queue a diagnostic notification

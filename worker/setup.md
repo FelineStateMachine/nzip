@@ -5,7 +5,7 @@ Everything here happens once. Day-to-day content pushes never touch wrangler.
 The default architecture targets the Workers Free plan. It requires no paid
 Email Sending subscription: alerts use Email Routing to one verified destination.
 Free-tier limits are account-wide, so review the
-[budget notes](../README.md#free-tier-design-target) before exposing a busy or
+[budget notes](../ARCHITECTURE.md#free-tier-design-target) before exposing a busy or
 multi-tenant deployment.
 
 ```sh
@@ -17,7 +17,7 @@ npx wrangler login
 # 2. private Wrangler config
 cp wrangler.jsonc wrangler.local.jsonc
 # Edit wrangler.local.jsonc now:
-# - routes[0].pattern: your hostname, such as share.example.com
+# - routes[0].pattern: your hostname, such as share.demo.dev
 # - vars.PUBLIC_BASE: https://<that hostname>
 # - d1_databases[0].database_id: filled in after D1 creation
 
@@ -60,7 +60,7 @@ Click the verification link Cloudflare sends, then configure:
 "send_email": [{ "name": "EMAIL", "destination_address": "operator@example.com" }],
 "vars": {
   "ALERT_EMAIL_TO": "operator@example.com",
-  "ALERT_EMAIL_FROM": "alerts@share.example.com"
+  "ALERT_EMAIL_FROM": "alerts@share.demo.dev"
 }
 ```
 
@@ -72,7 +72,7 @@ After deployment, send a delivery test through the owner-authenticated endpoint:
 
 ```sh
 curl -X POST -H "Authorization: Bearer $NZIP_TOKEN" \
-  https://share.example.com/api/security/test-alert
+  https://share.demo.dev/api/security/test-alert
 ```
 
 The Worker opens an incident when one scanner tries 20 distinct addresses in
@@ -197,20 +197,10 @@ deno install -g -f -n nzip \
   --allow-net --allow-read --allow-write --allow-env \
   cli/main.ts
 
-nzip auth --server https://share.example.com --token <token-from-step-5>
+nzip auth --server https://share.demo.dev --token <token-from-step-5>
 nzip vault add personal          # slot 0x0
 nzip vault add work              # slot 0x1
 nzip site push ./docs personal:plan --ttl forever
 ```
 
-## Local development
-
-```sh
-cd worker
-npx wrangler d1 execute nzip --local --file schema.sql   # once
-npx wrangler dev                                          # local R2/D1, token from .dev.vars
-nzip auth --server http://localhost:8787 --token dev-token-local-only
-```
-
-Test the GC cron locally: run `wrangler dev --test-scheduled`, then
-`curl "http://localhost:8787/__scheduled?cron=0+4+*+*+*"`.
+Local development and test commands live in [`CONTRIBUTING.md`](../CONTRIBUTING.md).

@@ -6,7 +6,7 @@ import { validateNotifyRequest } from "../src/notify.ts";
 import { buildWebPushRequest, validatePushEndpoint } from "../src/web_push.ts";
 
 const env = {
-  PUBLIC_BASE: "https://share.example.com",
+  PUBLIC_BASE: "https://share.demo.dev",
   WEB_PUSH_ORIGINS:
     "https://fcm.googleapis.com,https://web.push.apple.com,https://updates.push.services.mozilla.com",
 };
@@ -72,7 +72,7 @@ describe("push endpoint policy", () => {
       ...env,
       VAPID_PUBLIC_KEY: vapid.publicKey,
       VAPID_PRIVATE_KEY: vapid.privateKey,
-      VAPID_SUBJECT: "https://share.example.com",
+      VAPID_SUBJECT: "https://share.demo.dev",
     }, {
       endpoint: "https://fcm.googleapis.com/fcm/send/test",
       keys: {
@@ -93,7 +93,7 @@ describe("push endpoint policy", () => {
   it("rejects own-zone, credentialed, IP-literal, and alternate-port endpoints", () => {
     for (
       const endpoint of [
-        "https://share.example.com/_notify/reenter",
+        "https://share.demo.dev/_notify/reenter",
         "https://user:pass@fcm.googleapis.com/push",
         "https://127.0.0.1/push",
         "https://2130706433/push",

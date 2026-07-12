@@ -13,7 +13,7 @@
       "invocation_logs": false
     }
   },
-  "routes": [{ "pattern": "share.example.com", "custom_domain": true }],
+  "routes": [{ "pattern": "share.demo.dev", "custom_domain": true }],
   "r2_buckets": [
     {
       "binding": "CONTENT",
@@ -69,9 +69,9 @@
     ]
   },
   "vars": {
-    "PUBLIC_BASE": "https://share.example.com",
+    "PUBLIC_BASE": "https://share.demo.dev",
     "ALERT_EMAIL_TO": "operator@example.com",
-    "ALERT_EMAIL_FROM": "alerts@share.example.com",
+    "ALERT_EMAIL_FROM": "alerts@share.demo.dev",
     "NOTIFY_ENABLED": "false",
     "WEB_PUSH_ORIGINS": "",
     "VAPID_PUBLIC_KEY": "replace-with-url-safe-base64-public-key",
