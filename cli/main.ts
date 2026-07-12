@@ -20,6 +20,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { cmdAuth } from "./commands/auth.ts";
 import { cmdPush } from "./commands/push.ts";
+import { cmdNotify } from "./commands/notify.ts";
 import { cmdCp } from "./commands/cp.ts";
 import { cmdLs, cmdRevert, cmdRm, cmdSite, cmdStatus } from "./commands/sites.ts";
 import { cmdVault } from "./commands/vault.ts";
@@ -46,6 +47,12 @@ usage:
   nzip where <target>                      print the local dir this machine pushed from
   nzip rm <target> [--yes]                 delete a site
   nzip status                              server + vault overview
+  nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+                                           queue a notification for active devices
+  nzip notify test                         queue a diagnostic notification
+  nzip notify approve <code> --name NAME [--yes]
+  nzip notify devices                      list notification devices
+  nzip notify revoke <device-id> [--yes]   revoke a notification device
   nzip revert <target> [--to N] [--list]   repoint to a previous push
 
 targets: 2a3f | work:demo | demo (alias in default vault)
@@ -59,7 +66,19 @@ to named vaults — pushes/aliases outside the list are refused (agent guardrail
 
 async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
-    string: ["ttl", "to", "slot", "server", "token", "password", "name", "description"],
+    string: [
+      "ttl",
+      "to",
+      "slot",
+      "server",
+      "token",
+      "password",
+      "name",
+      "description",
+      "title",
+      "open",
+      "tag",
+    ],
     boolean: ["yes", "list", "help", "no-password", "overwrite", "json", "no-description"],
     alias: { h: "help", y: "yes" },
   });
@@ -107,6 +126,14 @@ async function main(): Promise<void> {
       return await cmdRm(config, rest[0], args.yes);
     case "status":
       return await cmdStatus(config);
+    case "notify":
+      return await cmdNotify(config, rest, {
+        title: args.title,
+        open: args.open,
+        tag: args.tag,
+        name: args.name,
+        yes: args.yes,
+      });
     case "revert":
       return await cmdRevert(config, rest[0], toSeq, args.list);
     case "vault":

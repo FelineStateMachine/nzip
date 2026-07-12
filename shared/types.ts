@@ -171,3 +171,96 @@ export interface ApiError {
   /** Human-readable error message safe to show to the authenticated client. */
   error: string;
 }
+
+/** Body of `POST /api/notify`: a small, user-visible Web Push event. */
+export interface NotifyRequest {
+  /** Notification title. The Worker defaults this to `nzip` when omitted. */
+  title?: string;
+  /** Required notification body. */
+  body: string;
+  /** Optional normalized, same-origin path opened when the notification is tapped. */
+  path?: string;
+  /** Optional provider-independent replacement/deduplication tag. */
+  tag?: string;
+}
+
+/** Reply from `POST /api/notify`; acceptance does not imply delivery. */
+export interface NotifyResponse {
+  /** Stable identifier for the persisted notification event. */
+  eventId: string;
+  /** Number of active device deliveries placed in the outbox. */
+  queuedDevices: number;
+  /** Number of approved but inactive devices excluded from delivery. */
+  inactiveDevices: number;
+}
+
+/** Server-side lifecycle state for an owner-approved notification device. */
+export type NotifyDeviceStatus =
+  | "pending"
+  | "approved"
+  | "active"
+  | "disabled"
+  | "revoked"
+  | "expired";
+
+/** Owner-visible notification device metadata. Subscription secrets are never returned. */
+export interface NotifyDeviceInfo {
+  /** Opaque stable identifier used for revocation. */
+  id: string;
+  /** Owner-assigned display name, or `null` while pairing is pending. */
+  name: string | null;
+  /** Current enrollment and subscription lifecycle state. */
+  status: NotifyDeviceStatus;
+  /** Bounded browser and operating-system summary captured at enrollment. */
+  userAgentSummary: string | null;
+  /** Coarse device class such as phone, tablet, or desktop. */
+  deviceClass: string | null;
+  /** Two-letter country code reported by the edge, when available. */
+  country: string | null;
+  /** Bounded region code reported by the edge, when available. */
+  region: string | null;
+  /** Network autonomous-system number reported by the edge, when available. */
+  asn: number | null;
+  /** Unix timestamp, in seconds, when enrollment began. */
+  createdAt: number;
+  /** Unix expiry for an unapproved pairing code, or `null` once inapplicable. */
+  pairingExpiresAt: number | null;
+  /** Unix expiry for the approved claim, or `null` when unavailable. */
+  claimExpiresAt: number | null;
+  /** Unix timestamp of owner approval, or `null` before approval. */
+  approvedAt: number | null;
+  /** Unix timestamp of first active subscription attachment, or `null`. */
+  activeAt: number | null;
+  /** Unix timestamp of the most recent subscription attachment, or `null`. */
+  lastAttachedAt: number | null;
+  /** Unix timestamp of the most recent validated device request, or `null`. */
+  lastSeenAt: number | null;
+  /** Unix timestamp of the most recent successful Web Push delivery, or `null`. */
+  lastSuccessAt: number | null;
+  /** Bounded error class only; provider responses and subscription material are excluded. */
+  lastError: string | null;
+}
+
+/** Bounded context shown before the owner approves a pairing code. */
+export interface NotifyApprovalPreview {
+  /** Unix timestamp, in seconds, when enrollment began. */
+  createdAt: number;
+  /** Bounded browser and operating-system summary captured at enrollment. */
+  userAgentSummary: string | null;
+  /** Coarse device class such as phone, tablet, or desktop. */
+  deviceClass: string | null;
+  /** Two-letter country code reported by the edge, when available. */
+  country: string | null;
+  /** Bounded region code reported by the edge, when available. */
+  region: string | null;
+  /** Network autonomous-system number reported by the edge, when available. */
+  asn: number | null;
+}
+
+/** Body of `POST /api/notify/approvals`. */
+export interface NotifyApprovalRequest {
+  /** Display-safe pairing code shown on the enrolling device. */
+  code: string;
+  /** Owner-assigned device name. */
+  name: string;
+}

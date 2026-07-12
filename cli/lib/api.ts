@@ -5,6 +5,11 @@ import type {
   CommitRequest,
   CommitResponse,
   Manifest,
+  NotifyApprovalPreview,
+  NotifyApprovalRequest,
+  NotifyDeviceInfo,
+  NotifyRequest,
+  NotifyResponse,
   PrepareResponse,
   SiteDetail,
   SiteInfo,
@@ -156,6 +161,38 @@ export class ApiClient {
       "PATCH",
       `/api/vaults/${encodeURIComponent(currentName)}`,
       JSON.stringify(patch),
+    );
+  }
+
+  notify(event: NotifyRequest): Promise<NotifyResponse> {
+    return this.request("POST", "/api/notify", JSON.stringify(event));
+  }
+
+  notificationDevices(): Promise<NotifyDeviceInfo[]> {
+    return this.request("GET", "/api/notify/devices");
+  }
+
+  notificationApprovalPreview(code: string): Promise<NotifyApprovalPreview> {
+    return this.request(
+      "GET",
+      `/api/notify/approvals/${encodeURIComponent(code)}`,
+    );
+  }
+
+  approveNotificationDevice(
+    approval: NotifyApprovalRequest,
+  ): Promise<NotifyDeviceInfo> {
+    return this.request(
+      "POST",
+      "/api/notify/approvals",
+      JSON.stringify(approval),
+    );
+  }
+
+  revokeNotificationDevice(deviceId: string): Promise<{ ok: true; deviceId: string }> {
+    return this.request(
+      "DELETE",
+      `/api/notify/devices/${encodeURIComponent(deviceId)}`,
     );
   }
 }

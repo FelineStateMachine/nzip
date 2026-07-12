@@ -47,6 +47,16 @@
       "name": "RL_SIGNAL",
       "namespace_id": "1004",
       "simple": { "limit": 1, "period": 60 }
+    },
+    {
+      "name": "RL_NOTIFY_ENROLL",
+      "namespace_id": "1005",
+      "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      "name": "RL_NOTIFY_READ",
+      "namespace_id": "1006",
+      "simple": { "limit": 60, "period": 60 }
     }
   ],
   "send_email": [
@@ -61,7 +71,11 @@
   "vars": {
     "PUBLIC_BASE": "https://share.example.com",
     "ALERT_EMAIL_TO": "operator@example.com",
-    "ALERT_EMAIL_FROM": "alerts@share.example.com"
+    "ALERT_EMAIL_FROM": "alerts@share.example.com",
+    "NOTIFY_ENABLED": "false",
+    "WEB_PUSH_ORIGINS": "",
+    "VAPID_PUBLIC_KEY": "replace-with-url-safe-base64-public-key",
+    "VAPID_SUBJECT": "mailto:operator@example.com"
   }
-  // Secrets (wrangler secret put --config wrangler.jsonc): NZIP_TOKEN
+  // Secrets (wrangler secret put --config wrangler.jsonc): NZIP_TOKEN, VAPID_PRIVATE_KEY
 }

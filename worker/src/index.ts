@@ -10,6 +10,8 @@ import {
   sendDailySecurityDigest,
 } from "./security_alerts.ts";
 import { serve } from "./serve.ts";
+import { handleNotifyPublic } from "./notify_public.ts";
+import { drainNotifications, pruneNotifications } from "./notify.ts";
 
 function tooManyRequests(): Response {
   return new Response("rate limited — slow down\n", {
@@ -37,6 +39,10 @@ export default {
     if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
       if (!checkBearer(req, env)) return finish(err("unauthorized", 401));
       return finish(await api(req, env, url, ctx));
+    }
+
+    if (url.pathname === "/_notify" || url.pathname.startsWith("/_notify/")) {
+      return finish(await handleNotifyPublic(req, env, url));
     }
 
     const isUnlock = req.method === "POST" &&
@@ -70,12 +76,14 @@ export default {
   ): Promise<void> {
     if (controller.cron === "*/5 * * * *") {
       ctx.waitUntil(evaluateEnumerationWindow(env));
+      ctx.waitUntil(drainNotifications(env));
       return;
     }
     ctx.waitUntil(
       Promise.all([
         runGc(env),
         pruneSecurityTelemetry(env),
+        pruneNotifications(env),
         sendDailySecurityDigest(env),
       ]).then(([r]) =>
         console.log(

@@ -12,6 +12,111 @@ describe("Worker runtime", () => {
     expect(await response.text()).toContain("nzip");
   });
 
+  it("keeps the root shell claim-independent until pairing is requested", async () => {
+    const response = await SELF.fetch("https://share.example.com/");
+    const html = await response.text();
+
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(html).toContain('id="pair"');
+    expect(html).not.toContain('<link rel="manifest"');
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM notification_devices",
+    ).first<{ count: number }>();
+    expect(count?.count).toBe(0);
+  });
+
+  it("enrolls, previews, approves, and activates while delivery is disabled", async () => {
+    const browserHeaders = {
+      origin: "https://share.example.com",
+      "sec-fetch-site": "same-origin",
+      "content-type": "application/json",
+      "user-agent": "runtime mobile browser",
+    };
+    const enrolled = await SELF.fetch(
+      "https://share.example.com/_notify/enrollments",
+      { method: "POST", headers: browserHeaders, body: "{}" },
+    );
+    expect(enrolled.status).toBe(201);
+    expect(enrolled.headers.get("cache-control")).toBe("no-store");
+    expect(enrolled.headers.get("vary")).toBe("Cookie");
+    const cookie = enrolled.headers.get("set-cookie")?.split(";", 1)[0];
+    const enrollment = await enrolled.json<{ code: string }>();
+    expect(cookie).toMatch(/^__Host-nzip-notify=/);
+    expect(enrollment.code).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
+
+    const ownerHeaders = {
+      authorization: "Bearer runtime-test-token",
+      "content-type": "application/json",
+    };
+    const preview = await SELF.fetch(
+      `https://share.example.com/api/notify/approvals/${enrollment.code}`,
+      { headers: ownerHeaders },
+    );
+    expect(preview.status).toBe(200);
+    expect(await preview.json()).toMatchObject({
+      userAgentSummary: "runtime mobile browser",
+      deviceClass: "mobile",
+    });
+
+    const approved = await SELF.fetch(
+      "https://share.example.com/api/notify/approvals",
+      {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({ code: enrollment.code, name: "runtime device" }),
+      },
+    );
+    expect(approved.status).toBe(200);
+    expect(await approved.json()).toMatchObject({
+      name: "runtime device",
+      status: "approved",
+    });
+
+    const activated = await SELF.fetch(
+      "https://share.example.com/_notify/enrollments/activate",
+      {
+        method: "POST",
+        headers: { ...browserHeaders, cookie: cookie! },
+        body: "{}",
+      },
+    );
+    expect(activated.status).toBe(200);
+    expect(await activated.json()).toMatchObject({
+      paired: true,
+      notifications: "off",
+    });
+
+    const disabledSend = await SELF.fetch(
+      "https://share.example.com/api/notify",
+      {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({ body: "runtime test" }),
+      },
+    );
+    expect(disabledSend.status).toBe(503);
+  });
+
+  it("serves install assets with explicit content and cache policies", async () => {
+    const manifest = await SELF.fetch(
+      "https://share.example.com/_notify/app.webmanifest",
+    );
+    const serviceWorker = await SELF.fetch(
+      "https://share.example.com/_notify/sw.js",
+    );
+    const icon = await SELF.fetch("https://share.example.com/_notify/icon.svg");
+
+    expect(manifest.headers.get("content-type")).toContain(
+      "application/manifest+json",
+    );
+    expect(serviceWorker.headers.get("content-type")).toContain(
+      "text/javascript",
+    );
+    expect(serviceWorker.headers.get("cache-control")).toBe("no-cache");
+    expect(serviceWorker.headers.get("service-worker-allowed")).toBe("/");
+    expect(icon.headers.get("content-type")).toContain("image/svg+xml");
+  });
+
   it("rejects unauthenticated API requests before touching storage", async () => {
     const response = await SELF.fetch("https://share.example.com/api/status");
 

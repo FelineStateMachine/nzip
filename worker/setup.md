@@ -64,9 +64,10 @@ Click the verification link Cloudflare sends, then configure:
 }
 ```
 
-Apply `migrations/0002_security_alerts.sql` and
-`migrations/0003_security_notification_outbox.sql`, then
-`migrations/0004_vault_descriptions.sql` before deploying an upgraded Worker.
+Apply `migrations/0002_security_alerts.sql`,
+`migrations/0003_security_notification_outbox.sql`,
+`migrations/0004_vault_descriptions.sql`, and
+`migrations/0005_notifications.sql` before deploying an upgraded Worker.
 After deployment, send a delivery test through the owner-authenticated endpoint:
 
 ```sh
@@ -110,7 +111,62 @@ npx wrangler d1 execute nzip --remote --file migrations/0001_auth_version.sql
 npx wrangler d1 execute nzip --remote --file migrations/0002_security_alerts.sql
 npx wrangler d1 execute nzip --remote --file migrations/0003_security_notification_outbox.sql
 npx wrangler d1 execute nzip --remote --file migrations/0004_vault_descriptions.sql
+npx wrangler d1 execute nzip --remote --file migrations/0005_notifications.sql
 ```
+
+## Owner notifications
+
+Notifications are fail-closed by default. Keep `NOTIFY_ENABLED` set to the
+string `"false"` while provisioning and applying the schema. Before deploying,
+copy the two notification rate-limit bindings from `wrangler.jsonc` into your
+ignored `wrangler.local.jsonc`, then configure one stable VAPID key pair:
+
+```sh
+# Generates a public/private P-256 VAPID key pair. Keep the private key private.
+npx web-push generate-vapid-keys
+
+# Enter the generated private key only at Wrangler's interactive prompt.
+npx wrangler secret put VAPID_PRIVATE_KEY --config wrangler.local.jsonc
+```
+
+Set `VAPID_PUBLIC_KEY` to the generated public key and `VAPID_SUBJECT` to a
+stable `mailto:` or `https:` contact value in `wrangler.local.jsonc`. Populate
+`WEB_PUSH_ORIGINS` with a comma-separated list of exact HTTPS origins observed
+from the browsers you intend to pair. Do not add wildcards or the deployment's
+own origin. An empty or invalid allowlist rejects subscription attachment and
+delivery.
+
+Apply the notification migration before deploying code that reads its tables:
+
+```sh
+cd worker
+npx wrangler d1 execute nzip --remote \
+  --config wrangler.local.jsonc \
+  --file migrations/0005_notifications.sql
+npx wrangler deploy --dry-run --config wrangler.local.jsonc
+npx wrangler deploy --config wrangler.local.jsonc
+```
+
+`NOTIFY_ENABLED` is the delivery kill switch. Leave it `"false"` until the
+deployment configuration is valid and a real device is ready for the pairing
+flow.
+
+To pair a phone, open the deployment root in its browser, tap the quiet `pair`
+footer action, and approve the displayed code from an authenticated terminal:
+
+```sh
+nzip notify approve ABCD-1234 --name "Personal phone"
+```
+
+Wait for the browser footer to say `paired` before adding the site to the Home
+Screen. Open the installed app, tap `notifications off`, and accept the system
+permission request. If the installed app cannot recover the approved claim,
+remove it, repeat pairing in the browser, wait for `paired`, and install again.
+
+After pairing succeeds, set `NOTIFY_ENABLED` to `"true"`, redeploy, and use
+`nzip notify test` for the final end-to-end smoke test. Notification titles and
+bodies may appear on a lock screen; never put passwords, tokens, private URLs,
+or other sensitive data in them.
 
 > **Cron gotcha:** deploying the `triggers` block fails with a 403 (API error
 > `10063`) until the account has a workers.dev subdomain registered — even if
