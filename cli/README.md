@@ -55,7 +55,7 @@ nzip
 │  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
 │  ├─ test                               send a diagnostic notification
 │  ├─ approve <code> --name NAME [--yes]
-│  ├─ devices                            list paired notification devices
+│  ├─ devices [--all]                    list current notification devices
 │  └─ revoke <device-id> [--yes]         revoke a notification device
 └─ revert <target> [--to N] [--list]     inspect or restore push history
 
@@ -82,6 +82,7 @@ authenticated CLI:
 ```sh
 nzip notify approve ABCD-1234 --name "Personal phone"
 nzip notify devices
+nzip notify devices --all # include disabled, revoked, and expired tombstones
 nzip notify "Report ready" --title "nzip" --open work:report
 ```
 

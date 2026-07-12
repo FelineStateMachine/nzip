@@ -49,7 +49,7 @@ commands:
   │  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
   │  ├─ test                               queue a diagnostic notification
   │  ├─ approve <code> --name NAME [--yes]
-  │  ├─ devices                            list notification devices
+  │  ├─ devices [--all]                    list current notification devices
   │  └─ revoke <device-id> [--yes]         revoke a notification device
   └─ revert <target> [--to N] [--list]     inspect or restore push history
 
@@ -82,7 +82,16 @@ async function main(): Promise<void> {
       "open",
       "tag",
     ],
-    boolean: ["yes", "list", "help", "no-password", "overwrite", "json", "no-description"],
+    boolean: [
+      "yes",
+      "list",
+      "help",
+      "no-password",
+      "overwrite",
+      "json",
+      "no-description",
+      "all",
+    ],
     alias: { h: "help", y: "yes" },
   });
   setJsonMode(args.json);
@@ -137,6 +146,7 @@ async function main(): Promise<void> {
         tag: args.tag,
         name: args.name,
         yes: args.yes,
+        all: args.all,
       });
     case "revert":
       return await cmdRevert(config, rest[0], toSeq, args.list);

@@ -1,4 +1,4 @@
-import type { NotifyApprovalPreview, NotifyRequest } from "@nzip/shared";
+import type { NotifyApprovalPreview, NotifyDeviceInfo, NotifyRequest } from "@nzip/shared";
 import { ApiClient, resolveCliTarget } from "../lib/api.ts";
 import type { Config } from "../lib/config.ts";
 import { ago, bold, cyan, dim, emit, fail, green, table } from "../lib/fmt.ts";
@@ -43,6 +43,16 @@ function location(preview: NotifyApprovalPreview): string {
   return [preview.country, preview.region].filter(Boolean).join("/") || "unknown";
 }
 
+export function filterNotificationDevices(
+  devices: NotifyDeviceInfo[],
+  includeAll: boolean,
+): NotifyDeviceInfo[] {
+  if (includeAll) return devices;
+  return devices.filter((device) =>
+    device.status === "pending" || device.status === "approved" || device.status === "active"
+  );
+}
+
 export async function cmdNotify(
   config: Config,
   rest: string[],
@@ -52,13 +62,14 @@ export async function cmdNotify(
     tag?: string;
     name?: string;
     yes: boolean;
+    all: boolean;
   },
 ): Promise<void> {
   const invocation = parseNotifyInvocation(rest);
   const api = new ApiClient(config);
 
   if (invocation.kind === "devices") {
-    const devices = await api.notificationDevices();
+    const devices = filterNotificationDevices(await api.notificationDevices(), options.all);
     emit(() => {
       if (devices.length === 0) return console.log(dim("no notification devices"));
       console.log(table(

@@ -138,7 +138,8 @@ own; approval still uses the configured owner bearer token.
 5. Run `nzip notify test` only when the user explicitly requests an end-to-end test.
 6. Send only on explicit request with
    `nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]`.
-7. Inspect delivery health with `nzip notify devices --json`.
+7. Inspect current delivery health with `nzip notify devices --json`. Add `--all` only when
+   disabled, revoked, or expired tombstones are relevant.
 
 If the installed app loses its pairing cookie, instruct the user to remove it, pair again in the
 browser, wait for `paired`, and reinstall it. Revoke a device only on explicit request.

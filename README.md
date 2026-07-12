@@ -94,7 +94,7 @@ nzip
 │  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
 │  ├─ test                               send a diagnostic notification
 │  ├─ approve <code> --name NAME [--yes]
-│  ├─ devices                            list paired notification devices
+│  ├─ devices [--all]                    list current notification devices
 │  └─ revoke <device-id> [--yes]         revoke a notification device
 └─ revert <target> [--to N] [--list]     inspect or restore push history
 
@@ -135,8 +135,8 @@ Wait for `paired` before installing the PWA. In the installed app, tap
 `notifications off` to request permission and attach the subscription. Send a
 message with `nzip notify "Build finished"`; add `--open work:report` to open an
 existing same-origin site when the notification is tapped. Use
-`nzip notify devices` to inspect delivery health and `nzip notify revoke` to
-remove a device.
+`nzip notify devices` to inspect current delivery health and `nzip notify revoke` to
+remove a device. Pass `--all` to include disabled, revoked, and expired tombstones.
 
 Notification titles and bodies may be visible on a lock screen. Never put
 passwords, tokens, private URLs, or sensitive personal data in them. If an

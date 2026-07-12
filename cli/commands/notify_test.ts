@@ -1,4 +1,5 @@
-import { parseNotifyInvocation } from "./notify.ts";
+import type { NotifyDeviceInfo } from "@nzip/shared";
+import { filterNotificationDevices, parseNotifyInvocation } from "./notify.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -31,4 +32,16 @@ Deno.test("notify parses test and device management subcommands", () => {
     kind: "revoke",
     deviceId: "device-1",
   });
+});
+
+Deno.test("notify devices hides tombstones unless all devices are requested", () => {
+  const devices = ["pending", "approved", "active", "disabled", "revoked", "expired"].map(
+    (status) => ({ status } as NotifyDeviceInfo),
+  );
+
+  assertEquals(
+    filterNotificationDevices(devices, false).map((device) => device.status),
+    ["pending", "approved", "active"],
+  );
+  assertEquals(filterNotificationDevices(devices, true), devices);
 });
