@@ -30,31 +30,30 @@ import { fail, setJsonMode } from "./lib/fmt.ts";
 
 const HELP = `nzip — html share tool
 
-usage:
-  nzip auth [--server URL] [--token T]     authenticate against the server
-  nzip vault add <name> [--slot N] [--description TEXT]
-                                           register a vault (16 slots, 0x0-0xf)
-  nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]
-                                           rename or describe a vault
-  nzip vault ls                            list vaults
-  nzip vault default <name>                set default vault
-  nzip push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
-  nzip cp <target> [dir] [--overwrite]      copy a hosted bundle locally
-  nzip site <target> [--ttl ...] [--password PW | --no-password]
-                                           inspect or update ttl/password
-  nzip share <target> [...]                 deprecated alias for nzip site
-  nzip ls [vault]                          list sites
-  nzip list [vault]                        alias for nzip ls
-  nzip where <target>                      print the local dir this machine pushed from
-  nzip rm <target> [--yes]                 delete a site
-  nzip status                              server + vault overview
-  nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]
-                                           queue a notification for active devices
-  nzip notify test                         queue a diagnostic notification
-  nzip notify approve <code> --name NAME [--yes]
-  nzip notify devices                      list notification devices
-  nzip notify revoke <device-id> [--yes]   revoke a notification device
-  nzip revert <target> [--to N] [--list]   repoint to a previous push
+commands:
+  nzip
+  ├─ auth [--server URL] [--token T]       authenticate against the server
+  ├─ vault
+  │  ├─ add <name> [--slot N] [--description TEXT]
+  │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+  │  ├─ ls                                 list vaults
+  │  └─ default <name>                     set the default vault
+  ├─ push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
+  ├─ cp <target> [dir] [--overwrite]       copy a hosted bundle
+  ├─ site <target> [--ttl ...] [--password PW | --no-password]
+  ├─ ls [vault]                            list sites
+  ├─ where <target>                        print this machine's source directory
+  ├─ rm <target> [--yes]                   delete a site
+  ├─ status                                show server and vault status
+  ├─ notify
+  │  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+  │  ├─ test                               queue a diagnostic notification
+  │  ├─ approve <code> --name NAME [--yes]
+  │  ├─ devices                            list notification devices
+  │  └─ revoke <device-id> [--yes]         revoke a notification device
+  └─ revert <target> [--to N] [--list]     inspect or restore push history
+
+aliases: list → ls · download → cp · share → site
 
 targets: 2a3f | work:demo | demo (alias in default vault)
 

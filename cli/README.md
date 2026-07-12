@@ -37,25 +37,29 @@ and site is already there.
 ## Commands
 
 ```text
-nzip auth [--server URL] [--token T]     authenticate and save config
-nzip vault add <name> [--slot N] [--description TEXT]
-                                         register a vault (16 slots, 0x0–0xf)
-nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]
-                                         rename or describe a vault
-nzip vault ls | default <name>           list vaults / set the default
-nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
-nzip cp <target> [dir] [--overwrite]
-nzip site <target> [--ttl …] [--password PW | --no-password]
-nzip ls [vault]                          list sites
-nzip where <target>                      print the local dir this machine pushed from
-nzip rm <target> [--yes]                 delete a site
-nzip status                              server + vault overview
-nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]
-nzip notify test                         send a diagnostic notification
-nzip notify approve <code> --name NAME [--yes]
-nzip notify devices                      list paired notification devices
-nzip notify revoke <device-id> [--yes]   revoke a notification device
-nzip revert <target> [--to N] [--list]   repoint to a previous push
+nzip
+├─ auth [--server URL] [--token T]       authenticate and save config
+├─ vault
+│  ├─ add <name> [--slot N] [--description TEXT]
+│  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+│  ├─ ls                                 list vaults
+│  └─ default <name>                     set the default vault
+├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
+├─ cp <target> [dir] [--overwrite]       copy a hosted bundle
+├─ site <target> [--ttl …] [--password PW | --no-password]
+├─ ls [vault]                            list sites
+├─ where <target>                        print this machine's source directory
+├─ rm <target> [--yes]                   delete a site
+├─ status                                show server and vault status
+├─ notify
+│  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+│  ├─ test                               send a diagnostic notification
+│  ├─ approve <code> --name NAME [--yes]
+│  ├─ devices                            list paired notification devices
+│  └─ revoke <device-id> [--yes]         revoke a notification device
+└─ revert <target> [--to N] [--list]     inspect or restore push history
+
+aliases: list → ls · download → cp · share → site
 ```
 
 Vault descriptions are included in `vault ls --json`. Use
@@ -63,13 +67,12 @@ Vault descriptions are included in `vault ls --json`. Use
 
 Password and TTL are committed with the content. On a new site, omitting `--password` creates an
 unprotected site; on an existing target, omission preserves its current password. Pass
-`--no-password` to clear protection explicitly. The former `nzip share` command remains available as
-a compatibility alias for `nzip site`.
+`--no-password` to clear protection explicitly.
 
 `nzip cp work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty directory.
 It uses the configured bearer token, verifies file hashes, and never exposes source via the public
 page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were never
-stored. The former `nzip download` command remains available as a compatibility alias.
+stored.
 
 ## Notifications
 

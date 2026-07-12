@@ -1,6 +1,6 @@
 ---
 name: nzip
-description: Set up, diagnose, and use the nzip HTML sharing CLI with repository-local working directories and safe publishing defaults. Use when installing or authenticating nzip, troubleshooting nzip access, publishing a plan, design, report, prototype, or other HTML artifact, managing an existing nzip site, or establishing nzip conventions in a repository.
+description: Set up, diagnose, and use the nzip HTML sharing CLI with repository-local working directories and safe publishing defaults. Use when installing or authenticating nzip, troubleshooting nzip access, publishing or managing an HTML artifact, pairing notification devices, sending or managing owner notifications, or establishing nzip conventions in a repository.
 ---
 
 # nzip
@@ -85,29 +85,31 @@ permissions when a sandbox blocks a check instead of reporting nzip as broken.
 
 Prefer `--json` when consuming command output programmatically.
 
-- Inspect readiness: `nzip status --json`
-- List destinations: `nzip vault ls --json`
-- Register a vault: `nzip vault add <name> [--slot N] [--description TEXT]`
-- Rename or describe a vault:
-  `nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]`
-- Set the default vault: `nzip vault default <name>`
-- List sites: `nzip ls [vault] --json`
-- Inspect a site: `nzip site <target> --json`
-- Publish or update: `nzip push <dir|file> [target] --ttl <days>`
-- Find its local source: `nzip where <target> --json`
-- Recover hosted source: `nzip cp <target> [dir]`
-- Change retention: `nzip site <target> --ttl <days>`
-- Set or remove a password: `nzip site <target> --password <pw>` / `--no-password`
-- Review history: `nzip revert <target> --list --json`
-- Restore history: `nzip revert <target> --to <push-number>`
-- Delete only on explicit request: `nzip rm <target> --yes`
-- List notification devices: `nzip notify devices --json`
-- Approve a user-supplied pairing code:
-  `nzip notify approve <code> --name <name> [--yes]`
-- Send only on explicit request:
-  `nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]`
-- Exercise the ordinary delivery path: `nzip notify test`
-- Revoke only on explicit request: `nzip notify revoke <device-id> --yes`
+```text
+nzip
+├─ auth [--server URL] [--token T]
+├─ vault
+│  ├─ add <name> [--slot N] [--description TEXT]
+│  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+│  ├─ ls
+│  └─ default <name>
+├─ push <dir|file> [target] [--ttl DAYS] [--password PW | --no-password]
+├─ cp <target> [dir] [--overwrite]
+├─ site <target> [--ttl DAYS] [--password PW | --no-password]
+├─ ls [vault]
+├─ where <target>
+├─ rm <target> [--yes]
+├─ status
+├─ notify
+│  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+│  ├─ test
+│  ├─ approve <code> --name NAME [--yes]
+│  ├─ devices
+│  └─ revoke <device-id> [--yes]
+└─ revert <target> [--to N] [--list]
+
+aliases: list → ls · download → cp · share → site
+```
 
 Use password protection when the content or user requires it; `nzip push` accepts the same
 `--password <pw> | --no-password` flags to set it at publish time. Vault descriptions appear in
@@ -124,6 +126,22 @@ notification title or body. Prefer `--open <target>` for click-throughs because
 the CLI resolves an existing nzip site, applies vault guardrails, and sends only
 a same-origin path. A pairing code is short-lived but is not sufficient on its
 own; approval still uses the configured owner bearer token.
+
+## Pair notifications
+
+1. Open the deployment root on the phone and tap `pair`.
+2. Ask the user for the displayed code and device name, then run
+   `nzip notify approve <code> --name <name>`. Show the approval preview and preserve the
+   interactive confirmation unless the user explicitly requested `--yes`.
+3. Wait for the browser to show `paired` before installing the PWA.
+4. Open the installed app, tap `notifications off`, and accept the system permission request.
+5. Run `nzip notify test` only when the user explicitly requests an end-to-end test.
+6. Send only on explicit request with
+   `nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]`.
+7. Inspect delivery health with `nzip notify devices --json`.
+
+If the installed app loses its pairing cookie, instruct the user to remove it, pair again in the
+browser, wait for `paired`, and reinstall it. Revoke a device only on explicit request.
 
 ## Sane defaults
 

@@ -76,25 +76,29 @@ Commands accept any of three target forms:
 ## Commands
 
 ```text
-nzip auth [--server URL] [--token T]     authenticate and save config
-nzip vault add <name> [--slot N] [--description TEXT]
-                                         register a vault (16 slots, 0x0–0xf)
-nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]
-                                         rename or describe a vault
-nzip vault ls | default <name>           list vaults / set the default
-nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
-nzip cp <target> [dir] [--overwrite]        copy the current hosted bundle locally
-nzip site <target> [--ttl …] [--password PW | --no-password]
-nzip ls [vault]                          list sites
-nzip where <target>                      print the local dir this machine pushed from
-nzip rm <target> [--yes]                 delete a site
-nzip status                              server + vault overview
-nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]
-nzip notify test                         send a diagnostic notification
-nzip notify approve <code> --name NAME [--yes]
-nzip notify devices                      list paired notification devices
-nzip notify revoke <device-id> [--yes]   revoke a notification device
-nzip revert <target> [--to N] [--list]   repoint to a previous push
+nzip
+├─ auth [--server URL] [--token T]       authenticate and save config
+├─ vault
+│  ├─ add <name> [--slot N] [--description TEXT]
+│  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+│  ├─ ls                                 list vaults
+│  └─ default <name>                     set the default vault
+├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
+├─ cp <target> [dir] [--overwrite]       copy a hosted bundle
+├─ site <target> [--ttl …] [--password PW | --no-password]
+├─ ls [vault]                            list sites
+├─ where <target>                        print this machine's source directory
+├─ rm <target> [--yes]                   delete a site
+├─ status                                show server and vault status
+├─ notify
+│  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+│  ├─ test                               send a diagnostic notification
+│  ├─ approve <code> --name NAME [--yes]
+│  ├─ devices                            list paired notification devices
+│  └─ revoke <device-id> [--yes]         revoke a notification device
+└─ revert <target> [--to N] [--list]     inspect or restore push history
+
+aliases: list → ls · download → cp · share → site
 ```
 
 Vault descriptions are returned by `vault ls --json` so agents can choose an
@@ -104,8 +108,7 @@ to `vault update` to clear it.
 Password and TTL are committed with the content. On a new site, omitting
 `--password` creates an unprotected site; on an existing target, omission
 preserves its current password. Pass `--no-password` to clear protection
-explicitly. The former `nzip share` command remains available as a compatibility
-alias for `nzip site`.
+explicitly.
 
 Pushing a single `page.html` stores it as the site's `index.html`. Directory
 pushes skip dotfiles and `node_modules`, and honor a `.nzipignore` (one glob per
@@ -117,8 +120,7 @@ authenticated server when the original local directory is unavailable. It
 refuses non-empty destinations unless `--overwrite` is passed, and verifies
 every downloaded file against the hosted manifest. It can only restore uploaded
 files—not dotfiles, `.nzipignore`, or other local project metadata excluded from
-a push. The former `nzip download` command remains available as a compatibility
-alias.
+a push.
 
 ### Owner notifications
 
