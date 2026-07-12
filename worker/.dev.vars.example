@@ -1,0 +1,2 @@
+# Non-secret placeholder used by `wrangler types`; copy to `.dev.vars` for local development.
+NZIP_TOKEN=replace-with-a-local-development-token

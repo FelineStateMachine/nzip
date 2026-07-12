@@ -7,11 +7,11 @@
     "dev:local": "wrangler dev --config wrangler.local.jsonc",
     "deploy": "wrangler deploy",
     "deploy:local": "wrangler deploy --config wrangler.local.jsonc",
-    "check": "tsc --noEmit && wrangler types --check --include-runtime false worker-configuration.d.ts",
+    "check": "tsc --noEmit && wrangler types worker-configuration.d.ts --check --include-runtime false --strict-vars false --env-file .dev.vars.example",
     "test": "npm run test:unit && npm run test:runtime",
     "test:unit": "node --experimental-strip-types --test test/*.test.mjs",
     "test:runtime": "vitest run",
-    "types": "wrangler types --include-runtime false worker-configuration.d.ts"
+    "types": "wrangler types worker-configuration.d.ts --include-runtime false --strict-vars false --env-file .dev.vars.example"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.18.4",
