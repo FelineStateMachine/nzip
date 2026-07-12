@@ -6,4 +6,4 @@ worker/wrangler.local.jsonc
 .DS_Store
 tmp/
 __pycache__/
-.nzip-*-plan/
+.nzip-*/

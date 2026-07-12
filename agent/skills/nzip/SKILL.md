@@ -24,18 +24,20 @@ produced it. Diagnose the local installation before guessing about unavailable a
    nzip auth --server <url> --token <token>
    ```
 
-   Omit `--token` when an interactive prompt is safer. The prompt requires a TTY: in a
-   non-interactive run, omitting `--token` fails instead of prompting, so ask the user to run
-   `nzip auth` themselves. Never print, commit, or invent the token.
+   When `--server` is omitted, the prompt defaults to `NZIP_SERVER` (or `NZIP_DOMAIN`, expanded to
+   `https://<domain>`); check those variables before asking the user for a server. No environment
+   variable supplies the token. Omit `--token` when an interactive prompt is safer. The prompt
+   requires a TTY: in a non-interactive run, omitting `--token` fails instead of prompting, so ask
+   the user to run `nzip auth` themselves. Never print, commit, or invent the token.
 
 5. Ensure the repository `.gitignore` contains this exact rule:
 
    ```gitignore
-   .nzip-*-plan/
+   .nzip-*/
    ```
 
    Add the rule without replacing existing ignore entries. Put generated sites at the repository
-   root using a descriptive name such as `.nzip-auth-plan/` or `.nzip-api-design-plan/`. Keep the
+   root using a descriptive name such as `.nzip-auth-plan/` or `.nzip-weekly-report/`. Keep the
    directory after publishing so later revisions retain the originating repository context, but do
    not commit it.
 
@@ -50,19 +52,18 @@ Run checks in this order and stop at the first failure that needs user input:
 
 Use the JSON `error` and `hint` fields as the primary diagnosis. Re-run `nzip auth` for missing or
 rejected credentials, correct the configured server for reachability failures, and ask the user to
-choose a vault when no safe destination is evident. Respect `allowVaults`; never bypass it with a
-raw address. Ask to use the required network or filesystem permissions when a sandbox blocks a
-check instead of reporting nzip as broken.
+choose a vault when no safe destination is evident. Ask to use the required network or filesystem
+permissions when a sandbox blocks a check instead of reporting nzip as broken.
 
 ## Publish an artifact
 
-1. Create a complete site inside `.nzip-<purpose>-plan/` at the repository root. Use `index.html`
-   as its entry point and keep any related assets inside the same directory.
+1. Create a complete site inside `.nzip-<purpose>/` at the repository root. Use `index.html` as its
+   entry point and keep any related assets inside the same directory.
 2. Validate the artifact locally in proportion to its complexity.
 3. Publish with an explicit low TTL:
 
    ```sh
-   nzip push .nzip-<purpose>-plan/ --ttl 1d
+   nzip push .nzip-<purpose>/ --ttl 1d
    ```
 
    Use `1d` for plans, designs, review pages, and other disposable agent artifacts unless the user
@@ -74,7 +75,7 @@ check instead of reporting nzip as broken.
    `nzip vault ls --json`:
 
    ```sh
-   nzip push .nzip-<purpose>-plan/ <vault>:<alias> --ttl 1d
+   nzip push .nzip-<purpose>/ <vault>:<alias> --ttl 1d
    ```
 
 5. Return the canonical URL and expiry. If the user requested a review boundary or asked for only
@@ -87,7 +88,8 @@ Prefer `--json` when consuming command output programmatically.
 - Inspect readiness: `nzip status --json`
 - List destinations: `nzip vault ls --json`
 - Register a vault: `nzip vault add <name> [--slot N] [--description TEXT]`
-- Rename or describe a vault: `nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]`
+- Rename or describe a vault:
+  `nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]`
 - Set the default vault: `nzip vault default <name>`
 - List sites: `nzip ls [vault] --json`
 - Inspect a site: `nzip site <target> --json`
@@ -104,19 +106,19 @@ Use password protection when the content or user requires it; `nzip push` accept
 `--password <pw> | --no-password` flags to set it at publish time. Vault descriptions appear in
 `vault ls` and `status`; use them to pick the right destination, and pass `--no-description` to
 clear one. A vault rename updates the invoking client's default vault, allow-list, and local push
-records, but other clients keep the old name; renaming to a name outside `allowVaults` is refused. Treat `revert`, vault renames, password changes, TTL changes, and
-deletion as state changes; do not perform them while merely diagnosing. Never infer deletion
-confirmation.
+records, but other clients keep the old name; renaming to a name outside `allowVaults` is refused.
+Treat `revert`, vault renames, password changes, TTL changes, and deletion as state changes; do not
+perform them while merely diagnosing. Never infer deletion confirmation.
 
 ## Sane defaults
 
-- Keep generated HTML in `.nzip-<purpose>-plan/`, not a system temp directory or a tracked source
+- Keep generated HTML in `.nzip-<purpose>/`, not a system temp directory or a tracked source
   directory, unless requested.
-- Ignore all such directories with `.nzip-*-plan/`.
+- Ignore all such directories with `.nzip-*/`.
 - Publish disposable plans and designs with `--ttl 1d`.
 - Prefer finite TTLs; use `forever` only when explicitly requested.
 - Prefer descriptive aliases and an explicit vault when identity or audience matters.
-- Preserve the local plan directory for iteration and `nzip where`; do not commit it.
+- Preserve the local artifact directory for iteration and `nzip where`; do not commit it.
 - Use complete, self-contained HTML and relative asset paths.
 - Use read-only status, list, and inspect operations before mutations when destination state is
   uncertain.
