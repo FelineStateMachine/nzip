@@ -139,7 +139,7 @@ describe("Worker runtime", () => {
     });
 
     expect(response.status).toBe(200);
-    expect((await response.json<{ version: string }>()).version).toBe("0.4.0");
+    expect((await response.json<{ version: string }>()).version).toBe("0.5.0");
   });
 
   it("creates, lists, renames, and redescribes vaults", async () => {
