@@ -5,6 +5,7 @@
     "fmt": "deno fmt cli shared",
     "fmt:check": "deno fmt --check cli shared",
     "lint": "deno lint cli shared",
+    "doc": "deno doc --lint shared/mod.ts",
     "test": "deno test --allow-read --allow-write cli shared"
   },
   "fmt": { "lineWidth": 100 }

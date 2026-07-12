@@ -35,7 +35,13 @@ const TYPES: Record<string, string> = {
   webmanifest: "application/manifest+json",
 };
 
-/** Resolve a content-type from a path's file extension, defaulting to `application/octet-stream`. */
+/**
+ * Resolves the media type stored in a manifest from a file path's extension.
+ *
+ * @param path File path whose final extension should be inspected.
+ * @returns A known media type, or `application/octet-stream` for unknown and
+ * extensionless paths.
+ */
 export function contentTypeFor(path: string): string {
   const dot = path.lastIndexOf(".");
   const ext = dot === -1 ? "" : path.slice(dot + 1).toLowerCase();

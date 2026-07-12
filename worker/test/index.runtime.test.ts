@@ -38,7 +38,7 @@ describe("Worker runtime", () => {
     });
 
     expect(response.status).toBe(200);
-    expect((await response.json<{ version: string }>()).version).toBe("0.3.0");
+    expect((await response.json<{ version: string }>()).version).toBe("0.3.1");
   });
 
   it("evaluates a real D1 probe window through the scheduled handler", async () => {
