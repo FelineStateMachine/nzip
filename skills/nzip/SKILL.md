@@ -11,7 +11,8 @@ exists, but do not clone or download the nzip repository merely to install the C
 
 ## Setup
 
-1. Check for the user CLI with `command -v nzip` and `nzip --help`.
+1. Check for the user CLI with `command -v nzip`, then capture its release with
+   `nzip --version --json`.
 2. If it is missing and Deno is available, install the latest JSR release globally:
 
    ```sh
@@ -58,9 +59,12 @@ Only perform these repository steps when creating or revising a local artifact:
 Run checks in this order and stop at the first failure that needs user input:
 
 1. `command -v nzip` — if missing, follow the JSR installation in Setup.
-2. `nzip --help` — confirm the installed command starts and inspect its supported command surface.
-3. `nzip status --json` — verify saved authentication, server reachability, and token validity.
-4. `nzip vault ls --json` — verify available vaults and the default vault.
+2. `nzip --version --json` — record the installed release without requiring authentication. If the
+   option is unsupported, the CLI predates version reporting; upgrade it from JSR before relying on
+   newer commands.
+3. `nzip --help` — confirm the installed command starts and inspect its supported command surface.
+4. `nzip status --json` — verify saved authentication, server reachability, and token validity.
+5. `nzip vault ls --json` — verify available vaults and the default vault.
 
 Use the JSON `error` and `hint` fields as the primary diagnosis. Re-run `nzip auth` for missing or
 rejected credentials, correct the configured server for reachability failures, and ask the user to
@@ -99,6 +103,7 @@ Prefer `--json` when consuming command output programmatically.
 
 ```text
 nzip
+├─ --version [--json]
 ├─ auth [--server URL] [--token T]
 ├─ status
 ├─ vault

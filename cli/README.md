@@ -13,6 +13,7 @@ Requires [Deno](https://docs.deno.com/runtime/) on your `PATH`.
 
 ```sh
 deno install -g -A -f -n nzip jsr:@nzip/cli
+nzip --version
 ```
 
 Try it without installing:
@@ -34,10 +35,15 @@ Config is saved to `~/.config/nzip/config.json` (mode 0600), so later commands j
 second machine, install from JSR and re-run `nzip auth` with the same server and token; every vault
 and site is already there.
 
+`nzip --version` prints the installed release without reading saved configuration. Use
+`nzip --version --json` to receive a single JSON object with a `version` field for scripts and
+agents.
+
 ## Commands
 
 ```text
 nzip
+├─ --version [--json]                     show the installed CLI version
 ├─ auth [--server URL] [--token T]       authenticate and save config
 ├─ status                                show server and vault status
 ├─ vault
