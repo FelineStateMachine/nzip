@@ -88,7 +88,10 @@ export function buildSecurityRequestEvent(
   };
 }
 
-async function scannerDigest(ip: string, secret: string): Promise<Uint8Array> {
+export async function scannerDigest(
+  ip: string,
+  secret: string,
+): Promise<Uint8Array> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -102,10 +105,59 @@ async function scannerDigest(ip: string, secret: string): Promise<Uint8Array> {
   );
 }
 
-function hex(bytes: Uint8Array): string {
+export function hex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
+}
+
+/** Persist a bounded, privacy-preserving record for five-minute alert evaluation. */
+export async function recordEnumerationProbe(
+  req: Request,
+  env: Env,
+  url: URL,
+  response: Response,
+): Promise<void> {
+  const match = url.pathname.match(EXACT_ADDRESS_PATH);
+  if (!match) return;
+
+  try {
+    const ip = req.headers.get("cf-connecting-ip") ?? "local";
+    const digest = await scannerDigest(ip, env.NZIP_TOKEN);
+    const scannerId = hex(digest.slice(0, 8));
+    const { success } = await env.RL_OBSERVE.limit({ key: scannerId });
+    if (!success && response.status !== 429) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const bucket = now - (now % 300);
+    const address = Number.parseInt(match[1], 16);
+    const cf = req.cf;
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO security_probes
+       (bucket, scanner_id, address, vault_slot, is_live, country, asn)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      bucket,
+      scannerId,
+      address,
+      address >>> 12,
+      response.status < 400 ? 1 : 0,
+      cf?.country ?? null,
+      typeof cf?.asn === "number" ? cf.asn : null,
+    ).run();
+
+    if (response.status === 429) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO security_signals (bucket, scanner_id, kind)
+         VALUES (?, ?, 'rate_limited')`,
+      ).bind(bucket, scannerId).run();
+    }
+  } catch (error) {
+    console.error({
+      event: "security.recording_failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 /**

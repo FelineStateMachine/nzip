@@ -1,42 +1,61 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "nzip",
-	"main": "src/index.ts",
-	"compatibility_date": "2026-06-01",
-	"cache": { "enabled": true },
-	"observability": {
-		"enabled": true,
-		"logs": {
-			"enabled": true,
-			"head_sampling_rate": 1,
-			"invocation_logs": false
-		}
-	},
-	"routes": [{ "pattern": "share.example.com", "custom_domain": true }],
-	"r2_buckets": [
-		{
-			"binding": "CONTENT",
-			"bucket_name": "nzip-content"
-		}
-	],
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "nzip",
-			"database_id": "00000000-0000-0000-0000-000000000000"
-		}
-	],
-	"ratelimits": [
-		{ "name": "RL_ENUM", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
-		{ "name": "RL_UNLOCK", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } }
-	],
-	"triggers": {
-		"crons": [
-			"0 4 * * *"
-		]
-	},
-	"vars": {
-		"PUBLIC_BASE": "https://share.example.com"
-	}
-	// Secrets (wrangler secret put --config wrangler.jsonc): NZIP_TOKEN
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nzip",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "cache": { "enabled": true },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": false
+    }
+  },
+  "routes": [{ "pattern": "share.example.com", "custom_domain": true }],
+  "r2_buckets": [
+    {
+      "binding": "CONTENT",
+      "bucket_name": "nzip-content"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nzip",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "RL_ENUM",
+      "namespace_id": "1001",
+      "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      "name": "RL_UNLOCK",
+      "namespace_id": "1002",
+      "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      "name": "RL_OBSERVE",
+      "namespace_id": "1003",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
+  "send_email": [
+    { "name": "EMAIL", "destination_address": "operator@example.com" }
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *",
+      "0 4 * * *"
+    ]
+  },
+  "vars": {
+    "PUBLIC_BASE": "https://share.example.com",
+    "ALERT_EMAIL_TO": "operator@example.com",
+    "ALERT_EMAIL_FROM": "alerts@share.example.com"
+  }
+  // Secrets (wrangler secret put --config wrangler.jsonc): NZIP_TOKEN
 }

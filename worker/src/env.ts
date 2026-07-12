@@ -7,9 +7,18 @@ export interface Env {
   RL_ENUM: RateLimit;
   // Per-IP+address limiter for the unlock endpoint — throttles password guessing.
   RL_UNLOCK: RateLimit;
+  // Caps persisted enumeration observations per scanner to bound D1 usage.
+  RL_OBSERVE: RateLimit;
+  EMAIL: SendEmail;
+  ALERT_EMAIL_TO: string;
+  ALERT_EMAIL_FROM: string;
 }
 
-export function json<T = unknown>(body: T, status = 200, headers: HeadersInit = {}): Response {
+export function json<T = unknown>(
+  body: T,
+  status = 200,
+  headers: HeadersInit = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json; charset=utf-8", ...headers },

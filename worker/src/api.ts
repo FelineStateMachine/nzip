@@ -39,6 +39,7 @@ import {
 import { type Env, err, json, siteUrl } from "./env.ts";
 import { purgeSiteCache } from "./cache.ts";
 import { hashPassword } from "./password.ts";
+import { sendAlertTest } from "./security_alerts.ts";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const DEFAULT_TTL_DAYS = 14;
@@ -218,6 +219,10 @@ export async function api(
 
     // status
     if (parts[1] === "status" && method === "GET") return await handleStatus(env);
+    if (parts[1] === "security" && parts[2] === "test-alert" && method === "POST") {
+      await sendAlertTest(env);
+      return json({ ok: true });
+    }
 
     // vaults
     if (parts[1] === "vaults" && parts.length === 2) {
