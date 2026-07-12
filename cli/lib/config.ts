@@ -6,11 +6,12 @@ export interface Config {
   token: string;
   defaultVault?: string;
   /**
-   * Optional allow-list of vault names this config may target by name. When
-   * present, any push/site/rm/revert/default that names a vault outside the
-   * list is refused — so a restricted agent can't drop content into a vault
-   * that sits adjacent to things you share professionally. Absent = no limit;
-   * empty array = no named vault is permitted.
+   * Optional allow-list of vault names this config may target. When present,
+   * any push/site/rm/revert/default that names a vault outside the list, or
+   * uses a raw address whose vault cannot be validated, is refused — so a
+   * restricted agent can't drop content into a vault that sits adjacent to
+   * things you share professionally. Absent = no limit; empty array = no
+   * target is permitted.
    */
   allowVaults?: string[];
 }
@@ -24,6 +25,14 @@ export function assertVaultAllowed(vault: string, config: Config): void {
       `vault "${vault}" is not allowed by this config (allowed: ${allowed})`,
     );
   }
+}
+
+/** Throw when a raw address would bypass a configured vault allow-list. */
+export function assertRawAddressAllowed(config: Config): void {
+  if (!config.allowVaults) return; // unset → unrestricted
+  throw new Error(
+    "raw address targets are not allowed by this config because allowVaults is set; use an allowed vault alias",
+  );
 }
 
 export function configDir(): string {

@@ -13,7 +13,7 @@ import type {
   Target,
   VaultInfo,
 } from "@nzip/shared";
-import { assertVaultAllowed, type Config } from "./config.ts";
+import { assertRawAddressAllowed, assertVaultAllowed, type Config } from "./config.ts";
 
 export class ApiClient {
   constructor(private config: Config) {}
@@ -165,7 +165,10 @@ export class ApiClient {
  * A bare alias picks up the default vault from config.
  */
 export function resolveCliTarget(raw: string, config: Config): string {
-  if (/^[0-9a-f]{4}$/.test(raw)) return raw; // raw address names no vault
+  if (/^[0-9a-f]{4}$/.test(raw)) {
+    assertRawAddressAllowed(config);
+    return raw;
+  }
   if (raw.includes(":")) {
     const [vault] = raw.split(":");
     assertVaultAllowed(vault, config);
@@ -191,7 +194,10 @@ export function commitTargetFor(
     assertVaultAllowed(vault, config);
     return { vault };
   }
-  if (/^[0-9a-f]{4}$/.test(raw)) return { address: parseInt(raw, 16) };
+  if (/^[0-9a-f]{4}$/.test(raw)) {
+    assertRawAddressAllowed(config);
+    return { address: parseInt(raw, 16) };
+  }
   const resolved = resolveCliTarget(raw, config);
   const [vault, alias] = resolved.split(":");
   return { vault, alias };

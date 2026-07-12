@@ -3,7 +3,7 @@
 // so it stays fast enough for `cd "$(nzip where personal:plan)"`.
 
 import { resolveCliTarget } from "../lib/api.ts";
-import type { Config } from "../lib/config.ts";
+import { assertRawAddressAllowed, type Config } from "../lib/config.ts";
 import { lookup } from "../lib/paths.ts";
 import { amber, dim, emit, fail } from "../lib/fmt.ts";
 
@@ -13,15 +13,17 @@ export async function cmdWhere(
 ): Promise<void> {
   if (!raw) fail("usage: nzip where <target>");
 
-  const q = /^[0-9a-f]{4}$/.test(raw) ? { address: raw } : (() => {
-    let resolved: string;
+  const q = (() => {
     try {
-      resolved = resolveCliTarget(raw, config);
+      if (/^[0-9a-f]{4}$/.test(raw)) {
+        assertRawAddressAllowed(config);
+        return { address: raw };
+      }
+      const [vault, alias] = resolveCliTarget(raw, config).split(":");
+      return { vault, alias };
     } catch (e) {
       return fail((e as Error).message);
     }
-    const [vault, alias] = resolved.split(":");
-    return { vault, alias };
   })();
 
   const entry = await lookup(q);

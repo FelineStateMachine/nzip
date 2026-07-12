@@ -65,10 +65,10 @@ Commands accept any of three target forms:
   self-cleans: expired entries drop on write, `rm` forgets its entry, and `ls`
   reconciles against the live set. Use it as `cd "$(nzip where personal:plan)"`.
 - **Vault guardrail.** An optional `"allowVaults": ["home"]` in `config.json`
-  restricts which vaults this install may target by name. Pushes or aliases
-  outside the list are refused before any upload, so a home-project agent can't
+  restricts which vaults this install may target. Targets outside the list and
+  raw hex addresses are refused before any upload, so a home-project agent can't
   drop a doc into a vault that sits adjacent to what you share professionally.
-  Absent = unrestricted; raw hex addresses bypass it (they name no vault).
+  Absent = unrestricted.
 
 ## Commands
 
