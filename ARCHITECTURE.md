@@ -7,14 +7,14 @@ identically.
 ## Components
 
 ```mermaid
-flowchart LR
-    CLI["nzip Deno CLI"] -- "bearer-authenticated API" --> W["nzip Worker"]
+flowchart TB
+    CLI["Deno CLI"] -- "bearer API" --> W["Worker"]
     V(["visitor"]) -- "GET /2a3f" --> C{"Workers Cache"}
-    C -- "hit" --> V
-    C -- "miss or bypass" --> W
-    W -- "tagged public response" --> C
-    W --> R2[("R2 blobs and manifests")]
-    W --> D1[("D1 state and history")]
+    C -- "hit" --> RESP["public response"]
+    C -- "miss" --> W
+    W -- "tagged response" --> RESP
+    W --> R2[("R2 blobs")]
+    W --> D1[("D1 state")]
 ```
 
 - `shared/` defines manifests, hashing, target parsing, limits, media types, and API contracts.
@@ -80,29 +80,28 @@ also asynchronous: the owner request persists an event and per-device attempts b
 work contacts a Web Push provider.
 
 ```mermaid
-flowchart LR
-    subgraph Pairing
-        OWNER["owner CLI"] -- "notify pair" --> WINDOW[("10-minute pairing window")]
-        PHONE["phone browser"] -- "begin enrollment" --> PENDING[("pending device and code hash")]
-        WINDOW --> PENDING
-        PENDING -- "display code" --> PHONE
-        OWNER -- "approve code" --> APPROVED[("approved device claim")]
-        PENDING --> APPROVED
-        APPROVED -- "activate claim" --> PWA["installed PWA"]
-        PWA -- "attach PushSubscription" --> ACTIVE[("active device")]
-    end
+flowchart TB
+    OWNER["owner: notify pair"] --> WINDOW[("10-minute window")]
+    PHONE["phone browser"] -- "enroll" --> PENDING[("pending device")]
+    WINDOW --> PENDING
+    PENDING --> CODE["display pairing code"]
+    CODE --> APPROVE["owner approves code"]
+    APPROVE --> APPROVED[("approved claim")]
+    APPROVED -- "activate" --> PWA["installed PWA"]
+    PWA -- "attach subscription" --> ACTIVE[("active device")]
+```
 
-    subgraph Delivery
-        OWNER -- "notify send" --> API["owner notification API"]
-        API --> EVENT[("event and per-device deliveries")]
-        EVENT --> DRAIN["scheduled delivery drain"]
-        ACTIVE --> DRAIN
-        DRAIN --> PUSH["allowed Web Push provider"]
-        PUSH --> SW["service worker"]
-        SW --> NOTICE["system notification"]
-        NOTICE -- "tap" --> TARGET["claim-authenticated click target"]
-        TARGET --> SITE["root or manifest-pinned site"]
-    end
+```mermaid
+flowchart TB
+    OWNER["owner CLI"] -- "notify send" --> API["notification API"]
+    API --> EVENT[("event + deliveries")]
+    ACTIVE[("active devices")] --> DRAIN["scheduled drain"]
+    EVENT --> DRAIN
+    DRAIN --> PUSH["Web Push provider"]
+    PUSH --> SW["service worker"]
+    SW --> NOTICE["system notification"]
+    NOTICE -- "tap" --> TARGET["validated click target"]
+    TARGET --> SITE["root or pinned site"]
 ```
 
 Pairing codes cannot approve themselves; the approval path always requires the owner bearer token.
@@ -122,15 +121,15 @@ leases, bounded retry schedules, and terminal outcomes so overlapping cron execu
 ## Observability
 
 ```mermaid
-flowchart LR
-    RESP["Worker response"] --> CLASSIFY["classify security-relevant request"]
-    CLASSIFY --> SAMPLE{"deterministic scanner sample"}
+flowchart TB
+    RESP["Worker response"] --> CLASSIFY["classify request"]
+    CLASSIFY --> SAMPLE{"scanner sample"}
     SAMPLE -- "selected" --> LOGS["Workers Logs"]
-    SAMPLE -- "not selected" --> DROP["no log event"]
-    PROBES[("bounded D1 probe windows")] --> CRON["five-minute evaluator"]
-    CRON --> WINDOW["security.enumeration_window"]
-    CRON --> OUTBOX[("durable alert outbox")]
-    LOGS --> DASH["Cloudflare Observability"]
+    SAMPLE -- "not selected" --> DROP["no event"]
+    PROBES[("D1 probe windows")] --> CRON["5-minute evaluator"]
+    CRON --> WINDOW["incident event"]
+    CRON --> OUTBOX[("alert outbox")]
+    LOGS --> DASH["Observability"]
     WINDOW --> DASH
     PROBES --> METRICS["D1 row metrics"]
 ```

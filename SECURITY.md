@@ -43,21 +43,21 @@ The address space is intentionally small, so nzip observes and limits enumeratio
 claiming addresses are unguessable.
 
 ```mermaid
-flowchart LR
+flowchart TB
     REQ(["request"]) --> SURFACE{"request surface"}
-    SURFACE -- "/api/*" --> TOKEN["bearer-token check"]
-    SURFACE -- "GET /xxxx" --> ENUM["enumeration limiter"]
-    SURFACE -- "POST /xxxx/__unlock" --> UNLOCK["password limiter"]
+    SURFACE -- "/api/*" --> TOKEN["bearer check"]
+    SURFACE -- "GET /xxxx" --> ENUM["enum limiter"]
+    SURFACE -- "POST unlock" --> UNLOCK["password limiter"]
     TOKEN --> API["owner API"]
-    ENUM --> SERVE["site lookup and serve"]
+    ENUM --> SERVE["site lookup"]
     UNLOCK --> SERVE
     SERVE --> GATE{"password protected?"}
-    GATE -- "yes" --> COOKIE["PBKDF2 and signed cookie"]
+    GATE -- "yes" --> COOKIE["PBKDF2 + cookie"]
     GATE -- "no" --> PUBLIC["public response"]
-    ENUM -. "HMAC scanner identity" .-> PROBES[("bounded D1 probe windows")]
-    PROBES --> EVAL["five-minute incident evaluator"]
-    EVAL --> OUTBOX[("durable email outbox")]
-    OUTBOX --> EMAIL["verified-destination email"]
+    ENUM -. "HMAC identity" .-> PROBES[("D1 probe windows")]
+    PROBES --> EVAL["incident evaluator"]
+    EVAL --> OUTBOX[("email outbox")]
+    OUTBOX --> EMAIL["verified email"]
     EMAIL --> INBOX(["operator inbox"])
 ```
 
