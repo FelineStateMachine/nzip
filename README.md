@@ -107,7 +107,7 @@ alias.
 
 ## Architecture
 
-### Program flow
+### Overview
 
 ```mermaid
 flowchart LR
