@@ -52,6 +52,8 @@ test("single-file root index redirects to the bare site URL", async () => {
   );
 
   assert.equal(response.status, 302);
+  assert.equal(response.headers.get("cache-control"), "public, max-age=60");
+  assert.equal(response.headers.get("cache-tag"), "nzip-site-2f9b");
   assert.equal(
     response.headers.get("location"),
     "https://n.zip/2f9b?view=full",
@@ -92,6 +94,8 @@ test("canonical directory URL serves its index without redirecting", async () =>
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("location"), null);
+  assert.equal(response.headers.get("cache-control"), "public, max-age=60");
+  assert.equal(response.headers.get("cache-tag"), "nzip-site-2f9b");
 });
 
 test("missing index path still returns not found", async () => {

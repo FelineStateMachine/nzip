@@ -3,6 +3,7 @@ import { checkBearer } from "./auth.ts";
 import type { Env } from "./env.ts";
 import { err } from "./env.ts";
 import { runGc } from "./gc.ts";
+import { logSecurityRequest } from "./observability.ts";
 import { serve } from "./serve.ts";
 
 function tooManyRequests(): Response {
@@ -13,17 +14,21 @@ function tooManyRequests(): Response {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
+    const finish = (response: Response): Response => {
+      ctx.waitUntil(logSecurityRequest(req, env, url, response));
+      return response;
+    };
 
     if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
-      if (!checkBearer(req, env)) return err("unauthorized", 401);
-      return await api(req, env, url);
+      if (!checkBearer(req, env)) return finish(err("unauthorized", 401));
+      return finish(await api(req, env, url, ctx));
     }
 
     const isUnlock = req.method === "POST" && /^\/[0-9a-f]{4}\/__unlock$/.test(url.pathname);
     if (req.method !== "GET" && req.method !== "HEAD" && !isUnlock) {
-      return err("method not allowed", 405);
+      return finish(err("method not allowed", 405));
     }
 
     // Guessing defenses. The address space is only 16 bits, so throttle the two
@@ -33,13 +38,13 @@ export default {
     if (isUnlock) {
       const address = url.pathname.slice(1, 5);
       const { success } = await env.RL_UNLOCK.limit({ key: `${ip}:${address}` });
-      if (!success) return tooManyRequests();
+      if (!success) return finish(tooManyRequests());
     } else if (/^\/[0-9a-f]{4}\/?$/.test(url.pathname)) {
       const { success } = await env.RL_ENUM.limit({ key: ip });
-      if (!success) return tooManyRequests();
+      if (!success) return finish(tooManyRequests());
     }
 
-    return await serve(req, env, url);
+    return finish(await serve(req, env, url));
   },
 
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {

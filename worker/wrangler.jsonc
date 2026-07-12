@@ -3,6 +3,15 @@
 	"name": "nzip",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-06-01",
+	"cache": { "enabled": true },
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"invocation_logs": false
+		}
+	},
 	"routes": [{ "pattern": "share.example.com", "custom_domain": true }],
 	"r2_buckets": [
 		{

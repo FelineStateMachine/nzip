@@ -37,6 +37,7 @@ import {
   type SiteRow,
 } from "./db.ts";
 import { type Env, err, json, siteUrl } from "./env.ts";
+import { purgeSiteCache } from "./cache.ts";
 import { hashPassword } from "./password.ts";
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -91,7 +92,7 @@ async function handleBlobPut(req: Request, env: Env, hash: string): Promise<Resp
   return json({ ok: true, hash });
 }
 
-async function handleCommit(req: Request, env: Env): Promise<Response> {
+async function handleCommit(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const body = await req.json<CommitRequest>();
   const passwordHash = await passwordHashFor(body.password);
   const bytes = canonicalManifestBytes(body.manifest);
@@ -151,6 +152,7 @@ async function handleCommit(req: Request, env: Env): Promise<Response> {
   });
 
   const addressStr = formatAddress(address);
+  await purgeSiteCache(ctx, addressStr);
   return json<CommitResponse>({
     address: addressStr,
     url: siteUrl(env, addressStr),
@@ -193,7 +195,12 @@ async function sourceManifest(env: Env, site: SiteRow): Promise<Manifest | Respo
   return parseManifest(new Uint8Array(await object.arrayBuffer()));
 }
 
-export async function api(req: Request, env: Env, url: URL): Promise<Response> {
+export async function api(
+  req: Request,
+  env: Env,
+  url: URL,
+  ctx: ExecutionContext,
+): Promise<Response> {
   const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
   const method = req.method;
 
@@ -203,7 +210,7 @@ export async function api(req: Request, env: Env, url: URL): Promise<Response> {
       return await handlePrepare(req, env);
     }
     if (parts[1] === "push" && parts[2] === "commit" && method === "POST") {
-      return await handleCommit(req, env);
+      return await handleCommit(req, env, ctx);
     }
     if (parts[1] === "blob" && parts.length === 3 && method === "PUT") {
       return await handleBlobPut(req, env, parts[2]);
@@ -280,7 +287,9 @@ export async function api(req: Request, env: Env, url: URL): Promise<Response> {
       }
       if (parts.length === 3 && method === "DELETE") {
         await env.DB.prepare("DELETE FROM sites WHERE address = ?").bind(site.address).run();
-        return json({ ok: true, address: formatAddress(site.address) });
+        const address = formatAddress(site.address);
+        await purgeSiteCache(ctx, address);
+        return json({ ok: true, address });
       }
       if (parts.length === 3 && method === "PATCH") {
         const body = await req.json<PatchSiteRequest>();
@@ -305,10 +314,11 @@ export async function api(req: Request, env: Env, url: URL): Promise<Response> {
             .bind(...values).run();
         }
         const updated = await getSiteByAddress(env, site.address);
+        await purgeSiteCache(ctx, formatAddress(site.address));
         return json(await siteRowToDetail(env, updated!));
       }
       if (parts.length === 4 && parts[3] === "revert" && method === "POST") {
-        return await handleRevert(req, env, site);
+        return await handleRevert(req, env, site, ctx);
       }
     }
 
@@ -321,7 +331,12 @@ export async function api(req: Request, env: Env, url: URL): Promise<Response> {
   }
 }
 
-async function handleRevert(req: Request, env: Env, site: SiteRow): Promise<Response> {
+async function handleRevert(
+  req: Request,
+  env: Env,
+  site: SiteRow,
+  ctx: ExecutionContext,
+): Promise<Response> {
   const body = await req.json<RevertRequest>().catch(() => ({} as RevertRequest));
   const history = await siteHistory(env, site.address); // newest first
 
@@ -346,6 +361,7 @@ async function handleRevert(req: Request, env: Env, site: SiteRow): Promise<Resp
   });
 
   const addressStr = formatAddress(site.address);
+  await purgeSiteCache(ctx, addressStr);
   return json({
     address: addressStr,
     url: siteUrl(env, addressStr),

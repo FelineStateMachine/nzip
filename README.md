@@ -117,7 +117,9 @@ A push is a stateless three-step protocol, and the manifest itself is the state:
    appending history
 
 Serving is one D1 read (address → manifest, expiry, password) and two R2 reads, with `ETag`
-revalidation and a 60-second cache. Metadata lives in three tables:
+revalidation and a 60-second tiered Workers Cache. Cache hits skip Worker execution and the D1/R2
+reads entirely. Public responses are tagged per site and purged when a push, revert, deletion, TTL,
+or password policy changes; protected responses and errors are never cached. Metadata lives in three tables:
 
 | table    | keys                                                                     |
 | -------- | ------------------------------------------------------------------------ |
@@ -213,3 +215,20 @@ nzip auth --server http://localhost:8787 --token dev-token-local-only
 
 Test the GC cron: `npx wrangler dev --test-scheduled`, then
 `curl "http://localhost:8787/__scheduled?cron=0+4+*+*+*"`.
+
+### Security observability
+
+Workers Logs are enabled by default for structured scan telemetry, with automatic invocation logs
+disabled to keep volume and cost bounded. The Worker retains complete request sequences for a
+deterministic 1% sample of scanner identities. Events are emitted as `security.request` and include
+the request class, bounded path, response result, derived vault/site slots for four-hex addresses,
+country, Cloudflare colo, ASN, and an HMAC-derived `scanner_id`; raw client IPs are never logged.
+
+Inspect these events under **Workers & Pages → nzip → Observability**, filtering on
+`event = "security.request"`. The `sample_rate` field records the sampling factor for aggregate
+estimates. Normal successful asset requests are omitted, while bare address probes, unlock attempts,
+bad API requests, invalid paths, and missing address assets are eligible.
+
+Rejected `429` floods receive a second 1% per-request sample after the identity sample. This keeps
+the allowed probe sequence intact while preventing a single blocked client from producing unbounded
+log volume; each event's `sample_rate` reflects the effective rate.

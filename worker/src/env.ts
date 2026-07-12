@@ -17,7 +17,7 @@ export function json<T = unknown>(body: T, status = 200, headers: HeadersInit = 
 }
 
 export function err(message: string, status: number): Response {
-  return json({ error: message }, status);
+  return json({ error: message }, status, { "cache-control": "no-store" });
 }
 
 export function siteUrl(env: Env, address: string): string {

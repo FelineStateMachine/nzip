@@ -1,5 +1,6 @@
 import { parseAddress, parseManifest } from "../../shared/mod.ts";
 import { getSiteByAddress, type SiteRow } from "./db.ts";
+import { siteCacheTag } from "./cache.ts";
 import type { Env } from "./env.ts";
 import { FAVICON_PNG } from "./favicon.ts";
 import { hasValidUnlockCookie, makeUnlockCookie, verifyPassword } from "./password.ts";
@@ -32,6 +33,20 @@ function htmlResponse(body: string, status: number, headers: HeadersInit = {}): 
   });
 }
 
+function publicSiteHeaders(address: string): HeadersInit {
+  return {
+    "cache-control": "public, max-age=60",
+    "cache-tag": siteCacheTag(address),
+  };
+}
+
+function publicSiteRedirect(url: string, address: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: { location: url, ...publicSiteHeaders(address) },
+  });
+}
+
 function unlockForm(address: string, error?: string): string {
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex"><title>unlock — nzip</title>
 <style>*{box-sizing:border-box}body{background:#121110;color:#d6cfc2;font-family:ui-monospace,monospace;display:grid;place-items:center;min-height:100vh;min-height:100dvh;margin:0;padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}form{width:min(100%,420px);text-align:center}b{color:#ffb347;font-size:24px;display:block;margin-bottom:20px}.field{display:flex;width:100%}input{background:#1a1815;border:1px solid #2e2a24;color:#d6cfc2;min-width:0;flex:1;padding:12px 14px;font:inherit;font-size:16px;line-height:20px;outline:none;border-radius:0}input:focus{border-color:#ffb347}button{background:#ffb347;border:0;color:#121110;min-height:46px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;border-radius:0}.e{color:#f7768e;margin-top:12px;font-size:13px}@media(max-width:360px){.field{display:grid;gap:10px}button{width:100%}}</style>
@@ -61,7 +76,9 @@ async function handleUnlock(req: Request, env: Env, site: SiteRow, address: stri
 export async function serve(req: Request, env: Env, url: URL): Promise<Response> {
   const path = url.pathname;
 
-  if (path === "/") return htmlResponse(landingPage(env), 200);
+  if (path === "/") {
+    return htmlResponse(landingPage(env), 200, { "cache-control": "public, max-age=3600" });
+  }
   // Served for the browsers' default probe; pushed sites under /{4hex}/ still
   // control their own icons through their HTML. PNG bytes at the .ico path are
   // accepted everywhere.
@@ -72,7 +89,7 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
   }
   if (path === "/robots.txt") {
     return new Response("User-agent: *\nAllow: /\n", {
-      headers: { "content-type": "text/plain" },
+      headers: { "content-type": "text/plain", "cache-control": "public, max-age=86400" },
     });
   }
 
@@ -109,7 +126,7 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
   let explicitIndexPath = false;
   if (m[2] === undefined) {
     if (filePaths.length !== 1) {
-      return Response.redirect(new URL(`/${addressStr}/`, url).toString(), 302);
+      return publicSiteRedirect(new URL(`/${addressStr}/`, url).toString(), addressStr);
     }
     assetPath = filePaths[0];
   } else {
@@ -128,13 +145,13 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
       : path.slice(0, -"index.html".length);
     const canonicalUrl = new URL(canonicalPath, url);
     canonicalUrl.search = url.search;
-    return Response.redirect(canonicalUrl.toString(), 302);
+    return publicSiteRedirect(canonicalUrl.toString(), addressStr);
   }
 
   let entry = manifest.files[assetPath];
   if (!entry && manifest.files[`${assetPath}/index.html`]) {
     // Directory hit without trailing slash: redirect so relative URLs resolve.
-    return Response.redirect(new URL(`${path}/`, url).toString(), 302);
+    return publicSiteRedirect(new URL(`${path}/`, url).toString(), addressStr);
   }
   if (!entry) return htmlResponse(NOT_FOUND_PAGE, 404);
 
@@ -144,7 +161,10 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
   // Never validate a previously cached protected response with 304: doing so
   // would let the browser reuse its stored body after the site was locked.
   if (!protectedSite && req.headers.get("if-none-match") === etag) {
-    return new Response(null, { status: 304, headers: { etag, "cache-control": cacheControl } });
+    return new Response(null, {
+      status: 304,
+      headers: { etag, ...publicSiteHeaders(addressStr) },
+    });
   }
 
   const blob = await env.CONTENT.get(`blob/${entry.h}`);
@@ -158,6 +178,7 @@ export async function serve(req: Request, env: Env, url: URL): Promise<Response>
       // Public addresses are mutable on re-push. Protected content must never
       // survive the password check in a browser or intermediary cache.
       "cache-control": cacheControl,
+      ...(protectedSite ? {} : { "cache-tag": siteCacheTag(addressStr) }),
     },
   });
 }
