@@ -1,6 +1,6 @@
-// `nzip where <target>` — print the local directory this machine pushed a site
+// `nzip site where <target>` — print the local directory this machine pushed a site
 // from. Purely local: reads the breadcrumb registry, never touches the server,
-// so it stays fast enough for `cd "$(nzip where personal:plan)"`.
+// so it stays fast enough for `cd "$(nzip site where personal:plan)"`.
 
 import { resolveCliTarget } from "../lib/api.ts";
 import { assertRawAddressAllowed, type Config } from "../lib/config.ts";
@@ -11,7 +11,7 @@ export async function cmdWhere(
   config: Config,
   raw: string | undefined,
 ): Promise<void> {
-  if (!raw) fail("usage: nzip where <target>");
+  if (!raw) fail("usage: nzip site where <target>");
 
   const q = (() => {
     try {
@@ -44,7 +44,7 @@ export async function cmdWhere(
 
   emit(
     () => {
-      console.log(entry.path); // bare path on stdout for `cd "$(nzip where …)"`
+      console.log(entry.path); // bare path on stdout for `cd "$(nzip site where …)"`
       if (!exists) {
         console.error(
           dim(`  ${amber("↳")} directory no longer exists (moved or deleted)`),

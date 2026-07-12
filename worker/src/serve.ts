@@ -122,6 +122,8 @@ export async function serve(
   if (path === "/") {
     return htmlResponse(notifyLandingPage(env), 200, {
       "cache-control": "public, max-age=3600",
+      "content-security-policy": "frame-ancestors 'none'",
+      "x-frame-options": "DENY",
     });
   }
   // Served for the browsers' default probe; pushed sites under /{4hex}/ still

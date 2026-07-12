@@ -75,13 +75,13 @@ export function hintFor(message: string): string | undefined {
     return "list vaults with: nzip vault ls — register one with: nzip vault add <name>";
   }
   if (/site not found/.test(message)) {
-    return "list sites with: nzip ls --json (targets: 2a3f | vault:alias | alias)";
+    return "list sites with: nzip site ls --json (targets: 2a3f | vault:alias | alias)";
   }
   if (/bare alias.*defaultVault|no defaultVault/.test(message)) {
     return "use vault:alias explicitly, or set a default with: nzip vault default <name>";
   }
   if (/blobs missing/.test(message)) {
-    return "an earlier upload was interrupted — re-run the same nzip push";
+    return "an earlier upload was interrupted — re-run the same nzip site push";
   }
   if (/invalid --ttl|ttl must be/.test(message)) {
     return "use --ttl 14d, --ttl 30d, or --ttl forever";
@@ -93,7 +93,7 @@ export function hintFor(message: string): string | undefined {
     return "server unreachable — check the server URL with: nzip status, or re-run nzip auth";
   }
   if (/vault is full|slots are taken/.test(message)) {
-    return "check usage with: nzip vault ls — remove sites with: nzip rm <target>";
+    return "check usage with: nzip vault ls — remove sites with: nzip site rm <target>";
   }
   return undefined;
 }

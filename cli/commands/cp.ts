@@ -26,7 +26,7 @@ export interface CopyResult {
 }
 
 function targetOrFail(raw: string | undefined, config: Config): string {
-  if (!raw) fail("usage: nzip cp <target> [dir] [--overwrite]");
+  if (!raw) fail("usage: nzip site cp <target> [dir] [--overwrite]");
   try {
     return resolveCliTarget(raw, config);
   } catch (e) {

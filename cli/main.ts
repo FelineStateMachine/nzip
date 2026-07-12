@@ -2,15 +2,14 @@
 /**
  * `nzip` — push a directory of HTML from the terminal and get a four-character
  * URL back. This is the CLI entrypoint; it parses argv and dispatches to the
- * command handlers (`auth`, `vault`, `push`, `site`, `ls`, `where`, `rm`,
- * `status`, `revert`).
+ * command handlers (`auth`, `status`, `vault`, `site`, and `notify`).
  *
  * Install and run it as a command rather than importing it:
  *
  * ```sh
  * deno install -g -A -f -n nzip jsr:@nzip/cli
  * nzip auth --server https://share.example.com
- * nzip push ./site work:demo
+ * nzip site push ./site work:demo
  * ```
  *
  * @module
@@ -19,12 +18,10 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import { cmdAuth } from "./commands/auth.ts";
-import { cmdPush } from "./commands/push.ts";
 import { cmdNotify } from "./commands/notify.ts";
-import { cmdCp } from "./commands/cp.ts";
-import { cmdLs, cmdRevert, cmdRm, cmdSite, cmdStatus } from "./commands/sites.ts";
+import { cmdSiteGroup } from "./commands/site.ts";
+import { cmdStatus } from "./commands/sites.ts";
 import { cmdVault } from "./commands/vault.ts";
-import { cmdWhere } from "./commands/where.ts";
 import { requireConfig } from "./lib/config.ts";
 import { fail, setJsonMode } from "./lib/fmt.ts";
 
@@ -38,22 +35,23 @@ commands:
   │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
   │  ├─ ls                                 list vaults
   │  └─ default <name>                     set the default vault
-  ├─ push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
-  ├─ cp <target> [dir] [--overwrite]       copy a hosted bundle
-  ├─ site <target> [--ttl ...] [--password PW | --no-password]
-  ├─ ls [vault]                            list sites
-  ├─ where <target>                        print this machine's source directory
-  ├─ rm <target> [--yes]                   delete a site
+  ├─ site
+  │  ├─ push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
+  │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
+  │  ├─ show <target>                      show site details
+  │  ├─ update <target> [--ttl ...] [--password PW | --no-password]
+  │  ├─ ls [vault]                         list sites
+  │  ├─ where <target>                     print this machine's source directory
+  │  ├─ rm <target> [--yes]                delete a site
+  │  └─ revert <target> [--to N] [--list]  inspect or restore push history
   ├─ status                                show server and vault status
-  ├─ notify
-  │  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
-  │  ├─ test                               queue a diagnostic notification
-  │  ├─ approve <code> --name NAME [--yes]
-  │  ├─ devices [--all]                    list current notification devices
-  │  └─ revoke <device-id> [--yes]         revoke a notification device
-  └─ revert <target> [--to N] [--list]     inspect or restore push history
-
-aliases: list → ls · download → cp · share → site
+  └─ notify
+     ├─ send <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+     ├─ test                               queue a diagnostic notification
+     ├─ pair                               allow device pairing for 10 minutes
+     ├─ approve <code> --name NAME [--yes]
+     ├─ devices [--all]                    list current notification devices
+     └─ revoke <device-id> [--yes]         revoke a notification device
 
 targets: 2a3f | work:demo | demo (alias in default vault)
 
@@ -104,39 +102,25 @@ async function main(): Promise<void> {
 
   if (command === "auth") return await cmdAuth(args.server, args.token);
 
+  if (!["site", "status", "notify", "vault"].includes(command)) {
+    fail(`unknown command: ${command}\n\n${HELP}`);
+  }
+
   const config = await requireConfig();
   const slot = args.slot === undefined ? undefined : parseInt(args.slot, 10);
   const toSeq = args.to === undefined ? undefined : parseInt(args.to, 10);
 
   switch (command) {
-    case "push":
-      return await cmdPush(
-        config,
-        rest[0],
-        rest[1],
-        args.ttl,
-        args.password,
-        args["no-password"],
-      );
-    case "cp":
-    case "download": // compatibility alias for the former command name
-      return await cmdCp(config, rest[0], rest[1], args.overwrite);
     case "site":
-    case "share": // compatibility alias for the former site-management command
-      return await cmdSite(
-        config,
-        rest[0],
-        args.ttl,
-        args.password,
-        args["no-password"],
-      );
-    case "ls":
-    case "list":
-      return await cmdLs(config, rest[0]);
-    case "where":
-      return await cmdWhere(config, rest[0]);
-    case "rm":
-      return await cmdRm(config, rest[0], args.yes);
+      return await cmdSiteGroup(config, rest, {
+        ttl: args.ttl,
+        password: args.password,
+        noPassword: args["no-password"],
+        overwrite: args.overwrite,
+        yes: args.yes,
+        toSeq,
+        list: args.list,
+      });
     case "status":
       return await cmdStatus(config);
     case "notify":
@@ -148,8 +132,6 @@ async function main(): Promise<void> {
         yes: args.yes,
         all: args.all,
       });
-    case "revert":
-      return await cmdRevert(config, rest[0], toSeq, args.list);
     case "vault":
       return await cmdVault(config, rest[0], rest[1], {
         slot,

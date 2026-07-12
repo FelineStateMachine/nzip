@@ -1,4 +1,4 @@
-// Directory walking, hashing, and manifest building for `nzip push`.
+// Directory walking, hashing, and manifest building for `nzip site push`.
 
 import { globToRegExp, join, relative } from "@std/path";
 import {

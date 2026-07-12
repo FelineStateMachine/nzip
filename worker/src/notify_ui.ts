@@ -80,11 +80,12 @@ self.addEventListener("notificationclick", (event) => {
 const APP_SCRIPT = String.raw`(() => {
   const footer = document.querySelector("footer");
   const status = document.getElementById("notify-status");
-  const pair = document.getElementById("pair");
   const isStandalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   let state = "unpaired";
   let polling = 0;
+  let pairingTimer = 0;
   let operation = false;
+  let pairingEnabled = false;
 
   const api = async (path, options = {}) => {
     const response = await fetch(path, { credentials: "same-origin", ...options });
@@ -105,14 +106,15 @@ const APP_SCRIPT = String.raw`(() => {
     value.textContent = text;
     return value;
   };
-  const render = (next) => {
+  const render = (next, pairing = pairingEnabled) => {
     state = next.status || state;
+    pairingEnabled = pairing;
     footer.replaceChildren();
     const args = document.createElement("a");
     args.href = "https://args.io/cat/nzip";
     args.textContent = "args";
     footer.append(args);
-    if (state === "unpaired" || state === "pending") {
+    if (state === "unpaired" && pairingEnabled) {
       footer.append(" · ", button("pair", "pair"));
       document.getElementById("pair").addEventListener("click", beginPairing);
       return;
@@ -128,6 +130,18 @@ const APP_SCRIPT = String.raw`(() => {
         footer.append(" · ", toggle);
       }
     }
+  };
+  const showPairingWindow = (pairing) => {
+    if (pairingTimer) clearTimeout(pairingTimer);
+    pairingTimer = 0;
+    const enabled = pairing.enabled === true && Number.isFinite(pairing.expiresAt);
+    render({ status: "unpaired" }, enabled);
+    if (!enabled) return;
+    const delay = Math.max(0, pairing.expiresAt * 1000 - Date.now());
+    pairingTimer = setTimeout(() => {
+      pairingTimer = 0;
+      if (state === "unpaired") render({ status: "unpaired" }, false);
+    }, delay);
   };
   const installAssets = async () => {
     if (!document.querySelector('link[rel="manifest"]')) {
@@ -270,8 +284,11 @@ const APP_SCRIPT = String.raw`(() => {
         const code = sessionStorage.getItem("nzip-pairing-code");
         setStatus((code ? code + "\n" : "") + "waiting");
         startPolling();
-      } else render({ status: "unpaired" });
-    } catch (_) { render({ status: "unpaired" }); setStatus("offline"); }
+      } else {
+        const pairing = await api("/_notify/pairing");
+        showPairingWindow(pairing);
+      }
+    } catch (_) { render({ status: "unpaired" }, false); setStatus("offline"); }
   })();
 })();`;
 
@@ -291,7 +308,7 @@ export function notifyLandingPage(env: NotifyEnv): string {
   const host = escapeHtml(new URL(env.PUBLIC_BASE).host);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"><meta name="theme-color" content="#1e1810"><title>${host}</title>
 <style>*{box-sizing:border-box}body{background:#1e1810;color:#e7dbc5;font-family:ui-monospace,monospace;margin:0;min-height:100dvh;display:flex;flex-direction:column}main{flex:1;display:grid;place-items:center;padding:24px;text-align:center}.landing{display:grid;gap:24px;justify-items:center}.wordmark{color:#f2e8d4;font-size:clamp(40px,10vw,72px);font-weight:700;letter-spacing:-.18em;line-height:.8}.wordmark .z{color:#ff6b4a}#notify-status{color:#8a8172;font-size:12px;line-height:1.6;white-space:pre-line;min-height:3.2em;letter-spacing:.02em}footer{text-align:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom));color:#6b6355;font-size:12px}a,button{color:#6b6355;font:inherit;text-decoration:underline}button{appearance:none;background:none;border:0;padding:0;cursor:pointer}a:hover,button:hover{color:#d99a5b}button:focus-visible,a:focus-visible{outline:2px solid #ffb347;outline-offset:4px}button:disabled{cursor:default;text-decoration:none}</style></head>
-<body><main><div class="landing"><div class="wordmark" aria-label="nzip">n<span class="z">z</span>ip</div><div id="notify-status" aria-live="polite"></div></div></main><footer><a href="https://args.io/cat/nzip">args</a> · <button id="pair" type="button">pair</button></footer><script>${APP_SCRIPT}</script></body></html>`;
+<body><main><div class="landing"><div class="wordmark" aria-label="nzip">n<span class="z">z</span>ip</div><div id="notify-status" aria-live="polite"></div></div></main><footer><a href="https://args.io/cat/nzip">args</a></footer><script>${APP_SCRIPT}</script></body></html>`;
 }
 
 function assetResponse(

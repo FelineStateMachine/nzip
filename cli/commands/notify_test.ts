@@ -7,22 +7,16 @@ function assertEquals(actual: unknown, expected: unknown): void {
   }
 }
 
-Deno.test("notify parses the primary send shape", () => {
-  assertEquals(parseNotifyInvocation(["report ready"]), {
+Deno.test("notify parses the explicit send shape", () => {
+  assertEquals(parseNotifyInvocation(["send", "report ready"]), {
     kind: "send",
     body: "report ready",
   });
 });
 
-Deno.test("notify supports an explicit send subcommand for reserved bodies", () => {
-  assertEquals(parseNotifyInvocation(["send", "test"]), {
-    kind: "send",
-    body: "test",
-  });
-});
-
 Deno.test("notify parses test and device management subcommands", () => {
   assertEquals(parseNotifyInvocation(["test"]), { kind: "test" });
+  assertEquals(parseNotifyInvocation(["pair"]), { kind: "pair" });
   assertEquals(parseNotifyInvocation(["approve", "ABCD-1234"]), {
     kind: "approve",
     code: "ABCD-1234",

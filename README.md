@@ -11,7 +11,7 @@ with optional expiration, password protection, and enumeration alerts._
 · [args.io/cat/nzip](https://args.io/cat/nzip)
 
 ```console
-$ nzip push ./demo work:demo --ttl 30d
+$ nzip site push ./demo work:demo --ttl 30d
   bundling ./demo … 3 files, 197 B
   manifest 4a91d75d — 3 new blobs (197 B), 0 deduped
 ✓ pushed work:demo -> https://share.example.com/12d8  (expires in 30d, push #1)
@@ -50,23 +50,23 @@ Commands accept any of three target forms:
 - **Ephemeral by default.** 14-day TTL, with `--ttl 30d` or `--ttl forever` to
   override. Expired shares answer `410 Gone`; a daily cron sweeps them and
   garbage-collects unreferenced content.
-- **Revertible.** The last 10 pushes per site are kept. `nzip revert` repoints
+- **Revertible.** The last 10 pushes per site are kept. `nzip site revert` repoints
   the address at any of them, and the revert itself is recorded as a push.
-- **Password-protectable.** `nzip push ./demo work:demo --password …` publishes
+- **Password-protectable.** `nzip site push ./demo work:demo --password …` publishes
   the content and password policy atomically, then gates the site behind an
   unlock form (PBKDF2 hashing, signed per-site cookie, 7 days). Changing the
-  password policy revokes existing cookies immediately. Use `nzip site` to
+  password policy revokes existing cookies immediately. Use `nzip site update` to
   change protection later.
 - **Single-user by design.** One bearer token, stored as a Worker secret and in
   `~/.config/nzip/config.json` (mode 0600).
 - **Owner notifications.** Pair explicitly approved phones from the quiet root
   PWA, then send Web Push notifications from the authenticated CLI. Clicks may
   open `/` or a manifest-pinned nzip site; arbitrary external URLs are refused.
-- **Locates itself.** `nzip where <target>` prints the local directory this
+- **Locates itself.** `nzip site where <target>` prints the local directory this
   machine pushed a site from. A breadcrumb registry
   (`~/.config/nzip/paths.json`) records the source path on every push and
   self-cleans: expired entries drop on write, `rm` forgets its entry, and `ls`
-  reconciles against the live set. Use it as `cd "$(nzip where personal:plan)"`.
+  reconciles against the live set. Use it as `cd "$(nzip site where personal:plan)"`.
 - **Vault guardrail.** An optional `"allowVaults": ["home"]` in `config.json`
   restricts which vaults this install may target. Targets outside the list and
   raw hex addresses are refused before any upload, so a home-project agent can't
@@ -83,22 +83,23 @@ nzip
 │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
 │  ├─ ls                                 list vaults
 │  └─ default <name>                     set the default vault
-├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
-├─ cp <target> [dir] [--overwrite]       copy a hosted bundle
-├─ site <target> [--ttl …] [--password PW | --no-password]
-├─ ls [vault]                            list sites
-├─ where <target>                        print this machine's source directory
-├─ rm <target> [--yes]                   delete a site
+├─ site
+│  ├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
+│  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
+│  ├─ show <target>                      show site details
+│  ├─ update <target> [--ttl …] [--password PW | --no-password]
+│  ├─ ls [vault]                         list sites
+│  ├─ where <target>                     print this machine's source directory
+│  ├─ rm <target> [--yes]                delete a site
+│  └─ revert <target> [--to N] [--list]  inspect or restore push history
 ├─ status                                show server and vault status
-├─ notify
-│  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
-│  ├─ test                               send a diagnostic notification
-│  ├─ approve <code> --name NAME [--yes]
-│  ├─ devices [--all]                    list current notification devices
-│  └─ revoke <device-id> [--yes]         revoke a notification device
-└─ revert <target> [--to N] [--list]     inspect or restore push history
-
-aliases: list → ls · download → cp · share → site
+└─ notify
+   ├─ send <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+   ├─ test                               send a diagnostic notification
+   ├─ pair                               allow device pairing for 10 minutes
+   ├─ approve <code> --name NAME [--yes]
+   ├─ devices [--all]                    list current notification devices
+   └─ revoke <device-id> [--yes]         revoke a notification device
 ```
 
 Vault descriptions are returned by `vault ls --json` so agents can choose an
@@ -115,7 +116,7 @@ pushes skip dotfiles and `node_modules`, and honor a `.nzipignore` (one glob per
 line). Single-file sites serve directly at the bare address (`/2a3f`);
 multi-file bundles redirect to `/2a3f/` so relative asset URLs resolve.
 
-`nzip cp work:demo ./recovered-demo` recovers the exact current bundle from the
+`nzip site cp work:demo ./recovered-demo` recovers the exact current bundle from the
 authenticated server when the original local directory is unavailable. It
 refuses non-empty destinations unless `--overwrite` is passed, and verifies
 every downloaded file against the hosted manifest. It can only restore uploaded
@@ -124,16 +125,18 @@ a push.
 
 ### Owner notifications
 
-Open the deployment root on a phone, tap `pair`, and approve the displayed code
-from an authenticated terminal:
+Open a 10-minute pairing window from an authenticated terminal, then open the
+deployment root on a phone. The `pair` action is visible only during that
+window. Tap it and approve the displayed code:
 
 ```sh
+nzip notify pair
 nzip notify approve ABCD-1234 --name "Personal phone"
 ```
 
 Wait for `paired` before installing the PWA. In the installed app, tap
 `notifications off` to request permission and attach the subscription. Send a
-message with `nzip notify "Build finished"`; add `--open work:report` to open an
+message with `nzip notify send "Build finished"`; add `--open work:report` to open an
 existing same-origin site when the notification is tapped. Use
 `nzip notify devices` to inspect current delivery health and `nzip notify revoke` to
 remove a device. Pass `--all` to include disabled, revoked, and expired tombstones.
@@ -361,7 +364,7 @@ deno install -g -A -f -n nzip jsr:@nzip/cli    # 1. install the `nzip` command
 
 nzip auth --server https://share.example.com   # 2. authenticate (prompts for the token)
 
-nzip push ./site work:demo                     # 3. get a URL back
+nzip site push ./site work:demo                # 3. get a URL back
 ```
 
 `nzip auth` prompts for anything you omit and saves it to
@@ -372,7 +375,7 @@ Upgrade any time by re-running the install line; try it without installing via
 Adding a **second machine**? Only the CLI is per-machine; the Worker, R2, D1,
 vaults, and token are already provisioned. Install from JSR and run `nzip auth`
 with the same server and token, and every vault and site is instantly there.
-(The `nzip where` breadcrumb registry is local, so it only knows sites pushed
+(The `nzip site where` breadcrumb registry is local, so it only knows sites pushed
 from this machine.)
 
 `nzip` is self-hosted. The server URL is supplied by the operator; there is no
@@ -404,7 +407,7 @@ nzip auth --server https://share.example.com      # use your actual PUBLIC_BASE
 ```
 
 `routes[0].pattern` and `vars.PUBLIC_BASE` are required for a real deployment.
-`PUBLIC_BASE` controls the URLs returned by `nzip push`, and the CLI
+`PUBLIC_BASE` controls the URLs returned by `nzip site push`, and the CLI
 authenticates against that same origin.
 
 Two gotchas learned the hard way:

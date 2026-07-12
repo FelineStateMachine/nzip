@@ -9,21 +9,68 @@ describe("Worker runtime", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
+    expect(response.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
     expect(await response.text()).toContain("nzip");
   });
 
-  it("keeps the root shell claim-independent until pairing is requested", async () => {
+  it("keeps the root shell claim-independent and hides pairing by default", async () => {
     const response = await SELF.fetch("https://share.example.com/");
     const html = await response.text();
 
     expect(response.headers.get("set-cookie")).toBeNull();
-    expect(html).toContain('id="pair"');
+    expect(html).not.toContain('id="pair"');
     expect(html).toContain("maximum-scale=1, user-scalable=no");
     expect(html).not.toContain('<link rel="manifest"');
     const count = await env.DB.prepare(
       "SELECT COUNT(*) AS count FROM notification_devices",
     ).first<{ count: number }>();
     expect(count?.count).toBe(0);
+  });
+
+  it("rejects enrollment until the owner opens a pairing window", async () => {
+    const browserHeaders = {
+      origin: "https://share.example.com",
+      "sec-fetch-site": "same-origin",
+      "content-type": "application/json",
+    };
+    const status = await SELF.fetch("https://share.example.com/_notify/pairing", {
+      headers: { "sec-fetch-site": "same-origin" },
+    });
+    expect(status.status).toBe(200);
+    expect(await status.json()).toEqual({ enabled: false, expiresAt: null });
+
+    const enrolled = await SELF.fetch(
+      "https://share.example.com/_notify/enrollments",
+      { method: "POST", headers: browserHeaders, body: "{}" },
+    );
+    expect(enrolled.status).toBe(404);
+    expect(await enrolled.json()).toEqual({ error: "pairing unavailable" });
+
+    const crossOrigin = await SELF.fetch("https://share.example.com/_notify/pairing", {
+      headers: {
+        origin: "https://attacker.example",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    expect(crossOrigin.status).toBe(403);
+
+    await SELF.fetch("https://share.example.com/api/notify/pairing", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer runtime-test-token",
+        "content-type": "application/json",
+      },
+      body: "{}",
+    });
+    await env.DB.prepare(
+      "UPDATE notification_pairing_window SET enabled_until = 0 WHERE id = 1",
+    ).run();
+    const expired = await SELF.fetch(
+      "https://share.example.com/_notify/enrollments",
+      { method: "POST", headers: browserHeaders, body: "{}" },
+    );
+    expect(expired.status).toBe(404);
   });
 
   it("enrolls, previews, approves, and activates while delivery is disabled", async () => {
@@ -33,6 +80,21 @@ describe("Worker runtime", () => {
       "content-type": "application/json",
       "user-agent": "runtime mobile browser",
     };
+    const ownerHeaders = {
+      authorization: "Bearer runtime-test-token",
+      "content-type": "application/json",
+    };
+    const opened = await SELF.fetch(
+      "https://share.example.com/api/notify/pairing",
+      { method: "POST", headers: ownerHeaders, body: "{}" },
+    );
+    expect(opened.status).toBe(200);
+    expect(await opened.json()).toMatchObject({ enabled: true });
+    const pairing = await SELF.fetch("https://share.example.com/_notify/pairing", {
+      headers: { "sec-fetch-site": "same-origin" },
+    });
+    expect(await pairing.json()).toMatchObject({ enabled: true });
+
     const enrolled = await SELF.fetch(
       "https://share.example.com/_notify/enrollments",
       { method: "POST", headers: browserHeaders, body: "{}" },
@@ -45,10 +107,6 @@ describe("Worker runtime", () => {
     expect(cookie).toMatch(/^__Host-nzip-notify=/);
     expect(enrollment.code).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
 
-    const ownerHeaders = {
-      authorization: "Bearer runtime-test-token",
-      "content-type": "application/json",
-    };
     const preview = await SELF.fetch(
       `https://share.example.com/api/notify/approvals/${enrollment.code}`,
       { headers: ownerHeaders },
@@ -139,7 +197,7 @@ describe("Worker runtime", () => {
     });
 
     expect(response.status).toBe(200);
-    expect((await response.json<{ version: string }>()).version).toBe("0.5.0");
+    expect((await response.json<{ version: string }>()).version).toBe("0.6.0");
   });
 
   it("creates, lists, renames, and redescribes vaults", async () => {

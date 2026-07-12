@@ -112,6 +112,7 @@ npx wrangler d1 execute nzip --remote --file migrations/0002_security_alerts.sql
 npx wrangler d1 execute nzip --remote --file migrations/0003_security_notification_outbox.sql
 npx wrangler d1 execute nzip --remote --file migrations/0004_vault_descriptions.sql
 npx wrangler d1 execute nzip --remote --file migrations/0005_notifications.sql
+npx wrangler d1 execute nzip --remote --file migrations/0006_notification_pairing_window.sql
 ```
 
 ## Owner notifications
@@ -143,6 +144,9 @@ cd worker
 npx wrangler d1 execute nzip --remote \
   --config wrangler.local.jsonc \
   --file migrations/0005_notifications.sql
+npx wrangler d1 execute nzip --remote \
+  --config wrangler.local.jsonc \
+  --file migrations/0006_notification_pairing_window.sql
 npx wrangler deploy --dry-run --config wrangler.local.jsonc
 npx wrangler deploy --config wrangler.local.jsonc
 ```
@@ -151,10 +155,12 @@ npx wrangler deploy --config wrangler.local.jsonc
 deployment configuration is valid and a real device is ready for the pairing
 flow.
 
-To pair a phone, open the deployment root in its browser, tap the quiet `pair`
-footer action, and approve the displayed code from an authenticated terminal:
+To pair a phone, first open a 10-minute pairing window from an authenticated
+terminal. Then open the deployment root in its browser, tap the temporary
+`pair` footer action, and approve the displayed code:
 
 ```sh
+nzip notify pair
 nzip notify approve ABCD-1234 --name "Personal phone"
 ```
 
@@ -194,7 +200,7 @@ deno install -g -f -n nzip \
 nzip auth --server https://share.example.com --token <token-from-step-5>
 nzip vault add personal          # slot 0x0
 nzip vault add work              # slot 0x1
-nzip push ./docs personal:plan --ttl forever
+nzip site push ./docs personal:plan --ttl forever
 ```
 
 ## Local development

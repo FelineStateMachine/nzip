@@ -16,7 +16,7 @@ export async function cmdPush(
 ): Promise<void> {
   if (!path) {
     fail(
-      "usage: nzip push <dir|file> [target] [--ttl 14d|forever] [--password PW | --no-password]",
+      "usage: nzip site push <dir|file> [target] [--ttl 14d|forever] [--password PW | --no-password]",
     );
   }
   if (password !== undefined && noPassword) {
@@ -89,7 +89,7 @@ export async function cmdPush(
   });
 
   // Breadcrumb: remember which directory this machine pushed from so
-  // `nzip where` can find it later. Best-effort — never fail a push over it.
+  // `nzip site where` can find it later. Best-effort — never fail a push over it.
   await recordPush({
     address: res.address,
     vault: "vault" in target ? target.vault : undefined,

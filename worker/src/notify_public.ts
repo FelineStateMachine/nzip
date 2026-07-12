@@ -5,6 +5,7 @@ import {
   createEnrollment,
   detachSubscription,
   getCurrentEnrollment,
+  getPairingWindow,
   type NotifyEnv,
   notifyErrorResponse,
   readNotifyJsonObject,
@@ -33,6 +34,9 @@ export async function handleNotifyPublic(
     }
     if (path === "/_notify/enrollments" && method === "POST") {
       return await createEnrollment(request, env);
+    }
+    if (path === "/_notify/pairing" && method === "GET") {
+      return await getPairingWindow(request, env);
     }
     if (path === "/_notify/enrollments/current" && method === "GET") {
       return await getCurrentEnrollment(request, env);

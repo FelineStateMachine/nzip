@@ -1,9 +1,9 @@
 // Local breadcrumb registry: which directory on *this* machine produced each
 // pushed site. The server never learns the source path, so we keep a small
-// map here so `nzip where <target>` can answer "where does that live on disk".
+// map here so `nzip site where <target>` can answer "where does that live on disk".
 //
 // Kept clean by three forces: expired entries are dropped on every write,
-// `nzip rm` deletes its entry, and `nzip ls` reconciles against the live set.
+// `nzip site rm` deletes its entry, and `nzip site ls` reconciles against the live set.
 
 import { join, resolve } from "@std/path";
 import { configDir } from "./config.ts";
@@ -107,7 +107,7 @@ export async function lookup(
   return null;
 }
 
-/** Rewrite breadcrumbs after `nzip vault update --name` so `nzip where` keeps working. */
+/** Rewrite breadcrumbs after `nzip vault update --name` so `nzip site where` keeps working. */
 export async function renameVault(
   oldName: string,
   newName: string,
@@ -119,7 +119,7 @@ export async function renameVault(
   await save(reg);
 }
 
-/** Forget a single site (called from `nzip rm`). */
+/** Forget a single site (called from `nzip site rm`). */
 export async function forget(
   q: { address?: string; vault?: string; alias?: string },
 ): Promise<void> {

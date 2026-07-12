@@ -4,6 +4,7 @@ import { validatePushEndpoint as validateWebPushEndpoint } from "./web_push.ts";
 
 const CLAIM_COOKIE = "__Host-nzip-notify";
 const PENDING_SECONDS = 10 * 60;
+const PAIRING_WINDOW_SECONDS = 10 * 60;
 const APPROVED_SETUP_SECONDS = 24 * 60 * 60;
 const CLAIM_SECONDS = 365 * 24 * 60 * 60;
 const RENEW_WINDOW_SECONDS = 90 * 24 * 60 * 60;
@@ -209,9 +210,7 @@ function cfMetadata(
   const cf = request.cf;
   return {
     country: typeof cf?.country === "string" ? cf.country.slice(0, 2) : null,
-    region: typeof cf?.regionCode === "string"
-      ? cf.regionCode.slice(0, 8)
-      : null,
+    region: typeof cf?.regionCode === "string" ? cf.regionCode.slice(0, 8) : null,
     asn: typeof cf?.asn === "number" ? cf.asn : null,
   };
 }
@@ -278,7 +277,9 @@ export async function createEnrollment(
          (id, pairing_code_hash, claim_hash, status, user_agent_summary, device_class,
           country, region, asn, created_at, pairing_expires_at, claim_expires_at)
          SELECT ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?
-         WHERE (SELECT COUNT(*) FROM notification_devices
+         WHERE EXISTS (SELECT 1 FROM notification_pairing_window
+                       WHERE id = 1 AND enabled_until > ?)
+           AND (SELECT COUNT(*) FROM notification_devices
                 WHERE status = 'pending' AND pairing_expires_at > ?) < ?`,
       ).bind(
         id,
@@ -293,12 +294,11 @@ export async function createEnrollment(
         now + PENDING_SECONDS,
         now + PENDING_SECONDS,
         now,
+        now,
         MAX_PENDING,
       ).run();
       if (result.meta.changes !== 1) {
-        throw new NotifyHttpError(429, "pairing temporarily unavailable", {
-          "retry-after": "60",
-        });
+        throw new NotifyHttpError(404, "pairing unavailable");
       }
       console.log(
         JSON.stringify({ event: "notify.enrollment_created", deviceId: id }),
@@ -319,6 +319,38 @@ export async function createEnrollment(
   }
   throw new NotifyHttpError(503, "pairing temporarily unavailable", {
     "retry-after": "60",
+  });
+}
+
+/** Public state used to reveal the pairing action only during an owner-opened window. */
+export async function getPairingWindow(
+  request: Request,
+  env: NotifyEnv,
+): Promise<Response> {
+  if (!isSameOriginBrowserRequest(request)) {
+    throw new NotifyHttpError(403, "same-origin request required");
+  }
+  await rateLimit(env.RL_NOTIFY_READ, clientKey(request));
+  const now = nowSeconds();
+  const row = await env.DB.prepare(
+    "SELECT enabled_until FROM notification_pairing_window WHERE id = 1 AND enabled_until > ?",
+  ).bind(now).first<{ enabled_until: number }>();
+  return publicJson({
+    enabled: row !== null,
+    expiresAt: row?.enabled_until ?? null,
+  });
+}
+
+/** Open a fixed, short pairing window from the owner-authenticated API. */
+export async function openPairingWindow(env: NotifyEnv): Promise<Response> {
+  const expiresAt = nowSeconds() + PAIRING_WINDOW_SECONDS;
+  await env.DB.prepare(
+    `INSERT INTO notification_pairing_window (id, enabled_until) VALUES (1, ?)
+     ON CONFLICT(id) DO UPDATE SET enabled_until = excluded.enabled_until`,
+  ).bind(expiresAt).run();
+  console.log(JSON.stringify({ event: "notify.pairing_enabled", expiresAt }));
+  return json({ enabled: true, expiresAt }, 200, {
+    "cache-control": "no-store",
   });
 }
 

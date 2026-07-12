@@ -1,5 +1,6 @@
-// site, ls, rm, status, revert — the site-management commands.
+// Site lifecycle operations plus the global deployment status command.
 
+import type { SiteDetail } from "@nzip/shared";
 import { ApiClient, resolveCliTarget } from "../lib/api.ts";
 import type { Config } from "../lib/config.ts";
 import { forget, reconcile } from "../lib/paths.ts";
@@ -30,29 +31,7 @@ function targetOrFail(
   }
 }
 
-export async function cmdSite(
-  config: Config,
-  raw: string | undefined,
-  ttlRaw: string | undefined,
-  password: string | undefined,
-  noPassword: boolean,
-): Promise<void> {
-  const target = targetOrFail(
-    raw,
-    config,
-    "usage: nzip site <target> [--ttl 14d|forever] [--password PW | --no-password]",
-  );
-  if (password !== undefined && noPassword) {
-    fail("choose either --password or --no-password, not both");
-  }
-  const api = new ApiClient(config);
-  const patch: { ttl?: number | "forever"; password?: string | null } = {};
-  if (ttlRaw !== undefined) patch.ttl = parseTtl(ttlRaw);
-  if (noPassword) patch.password = null;
-  else if (password !== undefined) patch.password = password;
-  const site = Object.keys(patch).length === 0
-    ? await api.siteDetail(target)
-    : await api.patchSite(target, patch);
+function emitSiteDetail(site: SiteDetail): void {
   const name = site.alias ? `${site.vault}:${site.alias}` : site.address;
   emit(
     () =>
@@ -63,6 +42,39 @@ export async function cmdSite(
       ),
     { ok: true, ...site },
   );
+}
+
+export async function cmdSiteShow(
+  config: Config,
+  raw: string | undefined,
+): Promise<void> {
+  const target = targetOrFail(raw, config, "usage: nzip site show <target>");
+  emitSiteDetail(await new ApiClient(config).siteDetail(target));
+}
+
+export async function cmdSiteUpdate(
+  config: Config,
+  raw: string | undefined,
+  ttlRaw: string | undefined,
+  password: string | undefined,
+  noPassword: boolean,
+): Promise<void> {
+  const target = targetOrFail(
+    raw,
+    config,
+    "usage: nzip site update <target> [--ttl 14d|forever] [--password PW | --no-password]",
+  );
+  if (password !== undefined && noPassword) {
+    fail("choose either --password or --no-password, not both");
+  }
+  const patch: { ttl?: number | "forever"; password?: string | null } = {};
+  if (ttlRaw !== undefined) patch.ttl = parseTtl(ttlRaw);
+  if (noPassword) patch.password = null;
+  else if (password !== undefined) patch.password = password;
+  if (Object.keys(patch).length === 0) {
+    fail("site update requires --ttl, --password, or --no-password");
+  }
+  emitSiteDetail(await new ApiClient(config).patchSite(target, patch));
 }
 
 export async function cmdLs(
@@ -98,7 +110,7 @@ export async function cmdRm(
   raw: string | undefined,
   yes: boolean,
 ): Promise<void> {
-  const target = targetOrFail(raw, config, "usage: nzip rm <target> [--yes]");
+  const target = targetOrFail(raw, config, "usage: nzip site rm <target> [--yes]");
   const api = new ApiClient(config);
   const site = await api.siteDetail(target);
   const name = site.alias ? `${site.vault}:${site.alias}` : site.address;
@@ -164,7 +176,7 @@ export async function cmdRevert(
   const target = targetOrFail(
     raw,
     config,
-    "usage: nzip revert <target> [--to N] [--list]",
+    "usage: nzip site revert <target> [--to N] [--list]",
   );
   const api = new ApiClient(config);
 

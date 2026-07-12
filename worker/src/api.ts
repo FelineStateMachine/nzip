@@ -12,6 +12,7 @@ import {
   listNotificationDevices,
   notifyErrorResponse,
   NotifyHttpError,
+  openPairingWindow,
   previewApproval,
   revokeNotificationDevice,
 } from "./notify_enrollment.ts";
@@ -29,6 +30,12 @@ export async function api(
   try {
     if (parts[1] === "notify" && parts.length === 2 && method === "POST") {
       return await handleNotifySend(request, env, ctx);
+    }
+    if (
+      parts[1] === "notify" && parts[2] === "pairing" &&
+      parts.length === 3 && method === "POST"
+    ) {
+      return await openPairingWindow(env);
     }
     if (
       parts[1] === "notify" && parts[2] === "devices" && parts.length === 3 &&

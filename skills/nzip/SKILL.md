@@ -63,7 +63,7 @@ permissions when a sandbox blocks a check instead of reporting nzip as broken.
 3. Publish with an explicit low TTL:
 
    ```sh
-   nzip push .nzip-<purpose>/ --ttl 1d
+   nzip site push .nzip-<purpose>/ --ttl 1d
    ```
 
    Use `1d` for plans, designs, review pages, and other disposable agent artifacts unless the user
@@ -75,7 +75,7 @@ permissions when a sandbox blocks a check instead of reporting nzip as broken.
    `nzip vault ls --json`:
 
    ```sh
-   nzip push .nzip-<purpose>/ <vault>:<alias> --ttl 1d
+   nzip site push .nzip-<purpose>/ <vault>:<alias> --ttl 1d
    ```
 
 5. Return the canonical URL and expiry. If the user requested a review boundary or asked for only
@@ -93,25 +93,26 @@ nzip
 │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
 │  ├─ ls
 │  └─ default <name>
-├─ push <dir|file> [target] [--ttl DAYS] [--password PW | --no-password]
-├─ cp <target> [dir] [--overwrite]
-├─ site <target> [--ttl DAYS] [--password PW | --no-password]
-├─ ls [vault]
-├─ where <target>
-├─ rm <target> [--yes]
+├─ site
+│  ├─ push <dir|file> [target] [--ttl DAYS] [--password PW | --no-password]
+│  ├─ cp <target> [dir] [--overwrite]
+│  ├─ show <target>
+│  ├─ update <target> [--ttl DAYS] [--password PW | --no-password]
+│  ├─ ls [vault]
+│  ├─ where <target>
+│  ├─ rm <target> [--yes]
+│  └─ revert <target> [--to N] [--list]
 ├─ status
-├─ notify
-│  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
-│  ├─ test
-│  ├─ approve <code> --name NAME [--yes]
-│  ├─ devices
-│  └─ revoke <device-id> [--yes]
-└─ revert <target> [--to N] [--list]
-
-aliases: list → ls · download → cp · share → site
+└─ notify
+   ├─ send <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+   ├─ test
+   ├─ pair
+   ├─ approve <code> --name NAME [--yes]
+   ├─ devices
+   └─ revoke <device-id> [--yes]
 ```
 
-Use password protection when the content or user requires it; `nzip push` accepts the same
+Use password protection when the content or user requires it; `nzip site push` accepts the same
 `--password <pw> | --no-password` flags to set it at publish time. Vault descriptions appear in
 `vault ls` and `status`; use them to pick the right destination, and pass `--no-description` to
 clear one. A vault rename updates the invoking client's default vault, allow-list, and local push
@@ -129,16 +130,18 @@ own; approval still uses the configured owner bearer token.
 
 ## Pair notifications
 
-1. Open the deployment root on the phone and tap `pair`.
-2. Ask the user for the displayed code and device name, then run
+1. On explicit request, run `nzip notify pair` to open the owner-authenticated 10-minute pairing
+   window. This is an external state change; do not open it while merely diagnosing.
+2. Open the deployment root on the phone while the temporary `pair` action is visible and tap it.
+3. Ask the user for the displayed code and device name, then run
    `nzip notify approve <code> --name <name>`. Show the approval preview and preserve the
    interactive confirmation unless the user explicitly requested `--yes`.
-3. Wait for the browser to show `paired` before installing the PWA.
-4. Open the installed app, tap `notifications off`, and accept the system permission request.
-5. Run `nzip notify test` only when the user explicitly requests an end-to-end test.
-6. Send only on explicit request with
-   `nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]`.
-7. Inspect current delivery health with `nzip notify devices --json`. Add `--all` only when
+4. Wait for the browser to show `paired` before installing the PWA.
+5. Open the installed app, tap `notifications off`, and accept the system permission request.
+6. Run `nzip notify test` only when the user explicitly requests an end-to-end test.
+7. Send only on explicit request with
+   `nzip notify send <body> [--title TEXT] [--open TARGET] [--tag TEXT]`.
+8. Inspect current delivery health with `nzip notify devices --json`. Add `--all` only when
    disabled, revoked, or expired tombstones are relevant.
 
 If the installed app loses its pairing cookie, instruct the user to remove it, pair again in the
@@ -152,7 +155,7 @@ browser, wait for `paired`, and reinstall it. Revoke a device only on explicit r
 - Publish disposable plans and designs with `--ttl 1d`.
 - Prefer finite TTLs; use `forever` only when explicitly requested.
 - Prefer descriptive aliases and an explicit vault when identity or audience matters.
-- Preserve the local artifact directory for iteration and `nzip where`; do not commit it.
+- Preserve the local artifact directory for iteration and `nzip site where`; do not commit it.
 - Use complete, self-contained HTML and relative asset paths.
 - Use read-only status, list, and inspect operations before mutations when destination state is
   uncertain.

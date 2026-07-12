@@ -108,7 +108,7 @@ export interface PushInfo {
   note: string | null;
 }
 
-/** A site plus its retained push history (powers `nzip revert`). */
+/** A site plus its retained push history (powers `nzip site revert`). */
 export interface SiteDetail extends SiteInfo {
   /** Retained push history ordered from newest to oldest. */
   history: PushInfo[];
@@ -192,6 +192,14 @@ export interface NotifyResponse {
   queuedDevices: number;
   /** Number of approved but inactive devices excluded from delivery. */
   inactiveDevices: number;
+}
+
+/** Current owner-controlled window during which new notification devices may enroll. */
+export interface NotifyPairingWindow {
+  /** Whether the Worker currently accepts new enrollment requests. */
+  enabled: boolean;
+  /** Unix timestamp, in seconds, when pairing closes, or `null` while closed. */
+  expiresAt: number | null;
 }
 
 /** Server-side lifecycle state for an owner-approved notification device. */

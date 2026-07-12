@@ -6,16 +6,23 @@ import { ago, bold, cyan, dim, emit, fail, green, table } from "../lib/fmt.ts";
 export type NotifyInvocation =
   | { kind: "send"; body: string }
   | { kind: "test" }
+  | { kind: "pair" }
   | { kind: "approve"; code: string }
   | { kind: "devices" }
   | { kind: "revoke"; deviceId: string };
 
 export function parseNotifyInvocation(rest: string[]): NotifyInvocation {
   const [first, second, ...extra] = rest;
-  if (!first) fail("usage: nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]");
+  if (!first) {
+    fail("usage: nzip notify <send|test|pair|approve|devices|revoke> ...");
+  }
   if (first === "test") {
     if (second !== undefined) fail("usage: nzip notify test");
     return { kind: "test" };
+  }
+  if (first === "pair") {
+    if (second !== undefined) fail("usage: nzip notify pair");
+    return { kind: "pair" };
   }
   if (first === "approve") {
     if (!second || extra.length > 0) fail("usage: nzip notify approve <code> --name NAME");
@@ -29,14 +36,13 @@ export function parseNotifyInvocation(rest: string[]): NotifyInvocation {
     if (!second || extra.length > 0) fail("usage: nzip notify revoke <device-id> [--yes]");
     return { kind: "revoke", deviceId: second };
   }
-  if (first === "send") {
-    if (!second || extra.length > 0) {
-      fail("usage: nzip notify send <body> [--title TEXT] [--open TARGET] [--tag TEXT]");
-    }
-    return { kind: "send", body: second };
+  if (first !== "send") {
+    fail(`unknown notify command: ${first}`);
   }
-  if (second !== undefined) fail("notification body must be one quoted argument");
-  return { kind: "send", body: first };
+  if (!second || extra.length > 0) {
+    fail("usage: nzip notify send <body> [--title TEXT] [--open TARGET] [--tag TEXT]");
+  }
+  return { kind: "send", body: second };
 }
 
 function location(preview: NotifyApprovalPreview): string {
@@ -67,6 +73,15 @@ export async function cmdNotify(
 ): Promise<void> {
   const invocation = parseNotifyInvocation(rest);
   const api = new ApiClient(config);
+
+  if (invocation.kind === "pair") {
+    const pairing = await api.openNotificationPairing();
+    emit(
+      () => console.log(`${green("✓")} pairing enabled for 10 minutes`),
+      { ok: true, pairing },
+    );
+    return;
+  }
 
   if (invocation.kind === "devices") {
     const devices = filterNotificationDevices(await api.notificationDevices(), options.all);

@@ -8,6 +8,7 @@ import type {
   NotifyApprovalPreview,
   NotifyApprovalRequest,
   NotifyDeviceInfo,
+  NotifyPairingWindow,
   NotifyRequest,
   NotifyResponse,
   PrepareResponse,
@@ -166,6 +167,10 @@ export class ApiClient {
 
   notify(event: NotifyRequest): Promise<NotifyResponse> {
     return this.request("POST", "/api/notify", JSON.stringify(event));
+  }
+
+  openNotificationPairing(): Promise<NotifyPairingWindow> {
+    return this.request("POST", "/api/notify/pairing", JSON.stringify({}));
   }
 
   notificationDevices(): Promise<NotifyDeviceInfo[]> {

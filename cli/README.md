@@ -26,7 +26,7 @@ deno run -A jsr:@nzip/cli --help
 ```sh
 nzip auth --server https://share.example.com   # authenticate (prompts for the token)
 nzip vault add work                            # register a named vault
-nzip push ./site work:demo --ttl 30d --password secret
+nzip site push ./site work:demo --ttl 30d --password secret
                                                 # → https://share.example.com/12d8
 ```
 
@@ -44,22 +44,23 @@ nzip
 │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
 │  ├─ ls                                 list vaults
 │  └─ default <name>                     set the default vault
-├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
-├─ cp <target> [dir] [--overwrite]       copy a hosted bundle
-├─ site <target> [--ttl …] [--password PW | --no-password]
-├─ ls [vault]                            list sites
-├─ where <target>                        print this machine's source directory
-├─ rm <target> [--yes]                   delete a site
+├─ site
+│  ├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
+│  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
+│  ├─ show <target>                      show site details
+│  ├─ update <target> [--ttl …] [--password PW | --no-password]
+│  ├─ ls [vault]                         list sites
+│  ├─ where <target>                     print this machine's source directory
+│  ├─ rm <target> [--yes]                delete a site
+│  └─ revert <target> [--to N] [--list]  inspect or restore push history
 ├─ status                                show server and vault status
-├─ notify
-│  ├─ <body> [--title TEXT] [--open TARGET] [--tag TEXT]
-│  ├─ test                               send a diagnostic notification
-│  ├─ approve <code> --name NAME [--yes]
-│  ├─ devices [--all]                    list current notification devices
-│  └─ revoke <device-id> [--yes]         revoke a notification device
-└─ revert <target> [--to N] [--list]     inspect or restore push history
-
-aliases: list → ls · download → cp · share → site
+└─ notify
+   ├─ send <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+   ├─ test                               send a diagnostic notification
+   ├─ pair                               allow device pairing for 10 minutes
+   ├─ approve <code> --name NAME [--yes]
+   ├─ devices [--all]                    list current notification devices
+   └─ revoke <device-id> [--yes]         revoke a notification device
 ```
 
 Vault descriptions are included in `vault ls --json`. Use
@@ -69,21 +70,23 @@ Password and TTL are committed with the content. On a new site, omitting `--pass
 unprotected site; on an existing target, omission preserves its current password. Pass
 `--no-password` to clear protection explicitly.
 
-`nzip cp work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty directory.
-It uses the configured bearer token, verifies file hashes, and never exposes source via the public
-page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were never
-stored.
+`nzip site cp work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty
+directory. It uses the configured bearer token, verifies file hashes, and never exposes source via
+the public page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were
+never stored.
 
 ## Notifications
 
-Pairing starts from the deployment root. After the phone shows a code, approve it from the
-authenticated CLI:
+Pairing is closed by default. Open a 10-minute pairing window from the authenticated CLI, then open
+the deployment root on the phone. The `pair` action appears only while that window is open. After
+the phone shows a code, approve it from the CLI:
 
 ```sh
+nzip notify pair
 nzip notify approve ABCD-1234 --name "Personal phone"
 nzip notify devices
 nzip notify devices --all # include disabled, revoked, and expired tombstones
-nzip notify "Report ready" --title "nzip" --open work:report
+nzip notify send "Report ready" --title "nzip" --open work:report
 ```
 
 `--open` accepts an existing nzip target and applies the same local vault guardrails as other
