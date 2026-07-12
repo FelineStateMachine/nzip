@@ -87,7 +87,7 @@ Prefer `--json` when consuming command output programmatically.
 - Inspect readiness: `nzip status --json`
 - List destinations: `nzip vault ls --json`
 - Register a vault: `nzip vault add <name> [--slot N] [--description TEXT]`
-- Rename or describe a vault: `nzip vault update <name> [--name NEW_NAME] [--description TEXT]`
+- Rename or describe a vault: `nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]`
 - Set the default vault: `nzip vault default <name>`
 - List sites: `nzip ls [vault] --json`
 - Inspect a site: `nzip site <target> --json`
@@ -102,9 +102,9 @@ Prefer `--json` when consuming command output programmatically.
 
 Use password protection when the content or user requires it; `nzip push` accepts the same
 `--password <pw> | --no-password` flags to set it at publish time. Vault descriptions appear in
-`vault ls` and `status`; use them to pick the right destination, and pass an empty `--description`
-to clear one. A vault rename updates the invoking client's default vault and allow-list, but other
-clients keep the old name. Treat `revert`, vault renames, password changes, TTL changes, and
+`vault ls` and `status`; use them to pick the right destination, and pass `--no-description` to
+clear one. A vault rename updates the invoking client's default vault, allow-list, and local push
+records, but other clients keep the old name; renaming to a name outside `allowVaults` is refused. Treat `revert`, vault renames, password changes, TTL changes, and
 deletion as state changes; do not perform them while merely diagnosing. Never infer deletion
 confirmation.
 

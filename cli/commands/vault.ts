@@ -2,16 +2,41 @@ import { ApiClient } from "../lib/api.ts";
 import type { Config } from "../lib/config.ts";
 import { assertVaultAllowed, saveConfig } from "../lib/config.ts";
 import { bold, dim, emit, fail, green, table } from "../lib/fmt.ts";
+import { renameVault } from "../lib/paths.ts";
+
+export interface VaultFlags {
+  slot?: number;
+  newName?: string;
+  description?: string;
+  clearDescription?: boolean;
+}
+
+/**
+ * A bare `--description` (value swallowed by the shell) parses to "", which
+ * would otherwise silently clear the stored text — require `--no-description`
+ * for that instead.
+ */
+function descriptionFlag(flags: VaultFlags): string | undefined {
+  if (flags.clearDescription) {
+    if (flags.description !== undefined) {
+      fail("pass either --description TEXT or --no-description, not both");
+    }
+    return "";
+  }
+  if (flags.description !== undefined && flags.description.trim() === "") {
+    fail("--description requires text; use --no-description to clear it");
+  }
+  return flags.description;
+}
 
 export async function cmdVault(
   config: Config,
   sub: string | undefined,
   name: string | undefined,
-  slot: number | undefined,
-  newName: string | undefined,
-  description: string | undefined,
+  flags: VaultFlags,
 ): Promise<void> {
   const api = new ApiClient(config);
+  const { slot, newName } = flags;
 
   if (sub === "ls" || sub === undefined) {
     const vaults = await api.listVaults();
@@ -21,12 +46,12 @@ export async function cmdVault(
         return;
       }
       console.log(table(
-        ["SLOT", "VAULT", "DESCRIPTION", "SITES"],
+        ["SLOT", "VAULT", "SITES", "DESCRIPTION"],
         vaults.map((v) => [
           `0x${v.slot.toString(16)}`,
           v.name === config.defaultVault ? bold(`${v.name} *`) : v.name,
-          v.description ?? "",
           String(v.siteCount),
+          v.description ?? "",
         ]),
       ));
     }, { ok: true, defaultVault: config.defaultVault ?? null, vaults });
@@ -35,6 +60,7 @@ export async function cmdVault(
 
   if (sub === "add") {
     if (!name) fail("usage: nzip vault add <name> [--slot N] [--description TEXT]");
+    const description = descriptionFlag(flags) || undefined;
     try {
       assertVaultAllowed(name, config);
     } catch (e) {
@@ -57,11 +83,17 @@ export async function cmdVault(
   }
 
   if (sub === "update") {
-    if (!name || (newName === undefined && description === undefined)) {
-      fail("usage: nzip vault update <name> [--name NEW_NAME] [--description TEXT]");
+    if (
+      !name || (newName === undefined && flags.description === undefined && !flags.clearDescription)
+    ) {
+      fail(
+        "usage: nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]",
+      );
     }
+    const description = descriptionFlag(flags);
     try {
       assertVaultAllowed(name, config);
+      if (newName !== undefined) assertVaultAllowed(newName, config);
     } catch (e) {
       return fail((e as Error).message);
     }
@@ -74,6 +106,7 @@ export async function cmdVault(
           ? { allowVaults: config.allowVaults.map((vault) => vault === name ? newName : vault) }
           : {}),
       });
+      await renameVault(name, newName);
     }
     emit(
       () =>

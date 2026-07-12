@@ -33,7 +33,7 @@ usage:
   nzip auth [--server URL] [--token T]     authenticate against the server
   nzip vault add <name> [--slot N] [--description TEXT]
                                            register a vault (16 slots, 0x0-0xf)
-  nzip vault update <name> [--name NEW_NAME] [--description TEXT]
+  nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]
                                            rename or describe a vault
   nzip vault ls                            list vaults
   nzip vault default <name>                set default vault
@@ -60,7 +60,7 @@ to named vaults — pushes/aliases outside the list are refused (agent guardrail
 async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
     string: ["ttl", "to", "slot", "server", "token", "password", "name", "description"],
-    boolean: ["yes", "list", "help", "no-password", "overwrite", "json"],
+    boolean: ["yes", "list", "help", "no-password", "overwrite", "json", "no-description"],
     alias: { h: "help", y: "yes" },
   });
   setJsonMode(args.json);
@@ -110,7 +110,12 @@ async function main(): Promise<void> {
     case "revert":
       return await cmdRevert(config, rest[0], toSeq, args.list);
     case "vault":
-      return await cmdVault(config, rest[0], rest[1], slot, args.name, args.description);
+      return await cmdVault(config, rest[0], rest[1], {
+        slot,
+        newName: args.name,
+        description: args.description,
+        clearDescription: args["no-description"],
+      });
     default:
       fail(`unknown command: ${command}\n\n${HELP}`);
   }

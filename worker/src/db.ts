@@ -195,27 +195,23 @@ export async function siteHistory(
   }));
 }
 
+export function vaultRowToInfo(row: VaultRow, siteCount: number): VaultInfo {
+  return {
+    slot: row.slot,
+    name: row.name,
+    description: row.description,
+    createdAt: row.created_at,
+    siteCount,
+  };
+}
+
 export async function listVaults(env: Env): Promise<VaultInfo[]> {
   const res = await env.DB.prepare(
     `SELECT v.slot, v.name, v.description, v.created_at, COUNT(s.address) AS site_count
      FROM vaults v LEFT JOIN sites s ON s.vault_slot = v.slot
      GROUP BY v.slot ORDER BY v.slot`,
-  ).all<
-    {
-      slot: number;
-      name: string;
-      description: string | null;
-      created_at: number;
-      site_count: number;
-    }
-  >();
-  return res.results.map((r) => ({
-    slot: r.slot,
-    name: r.name,
-    description: r.description,
-    createdAt: r.created_at,
-    siteCount: r.site_count,
-  }));
+  ).all<VaultRow & { site_count: number }>();
+  return res.results.map((r) => vaultRowToInfo(r, r.site_count));
 }
 
 export async function createVault(
@@ -269,7 +265,12 @@ export async function updateVault(
   if (result.meta.changes === 0) return null;
 
   const updatedName = patch.name ?? currentName;
-  return (await listVaults(env)).find((vault) => vault.name === updatedName) ?? null;
+  const row = await getVaultByName(env, updatedName);
+  if (!row) return null;
+  const count = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM sites WHERE vault_slot = ?",
+  ).bind(row.slot).first<{ n: number }>();
+  return vaultRowToInfo(row, count?.n ?? 0);
 }
 
 export function siteRowToInfo(

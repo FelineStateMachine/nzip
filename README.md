@@ -76,7 +76,7 @@ Commands accept any of three target forms:
 nzip auth [--server URL] [--token T]     authenticate and save config
 nzip vault add <name> [--slot N] [--description TEXT]
                                          register a vault (16 slots, 0x0–0xf)
-nzip vault update <name> [--name NEW_NAME] [--description TEXT]
+nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]
                                          rename or describe a vault
 nzip vault ls | default <name>           list vaults / set the default
 nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
@@ -90,7 +90,7 @@ nzip revert <target> [--to N] [--list]   repoint to a previous push
 ```
 
 Vault descriptions are returned by `vault ls --json` so agents can choose an
-appropriate destination from its purpose or audience. Pass an empty description
+appropriate destination from its purpose or audience. Pass `--no-description`
 to `vault update` to clear it.
 
 Password and TTL are committed with the content. On a new site, omitting

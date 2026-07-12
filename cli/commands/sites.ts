@@ -141,14 +141,14 @@ export async function cmdStatus(config: Config): Promise<void> {
     );
     if (status.vaults.length > 0) {
       console.log(table(
-        ["SLOT", "VAULT", "DESCRIPTION", "SITES"],
+        ["SLOT", "VAULT", "SITES", "DESCRIPTION"],
         status.vaults.map((
           v,
         ) => [
           `0x${v.slot.toString(16)}`,
           v.name,
-          v.description ?? "",
           String(v.siteCount),
+          v.description ?? "",
         ]),
       ));
     }

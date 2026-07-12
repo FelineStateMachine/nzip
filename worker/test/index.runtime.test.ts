@@ -86,6 +86,28 @@ describe("Worker runtime", () => {
     });
     expect(cleared.status).toBe(200);
     expect(await cleared.json()).toMatchObject({ name: "reviews", description: null });
+
+    const clearedWithNull = await SELF.fetch("https://share.example.com/api/vaults/reviews", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ description: null }),
+    });
+    expect(clearedWithNull.status).toBe(200);
+    expect(await clearedWithNull.json()).toMatchObject({ name: "reviews", description: null });
+
+    const multiline = await SELF.fetch("https://share.example.com/api/vaults/reviews", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ description: "line1\nline2" }),
+    });
+    expect(multiline.status).toBe(400);
+
+    const badEncoding = await SELF.fetch("https://share.example.com/api/vaults/%zz", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ description: "x" }),
+    });
+    expect(badEncoding.status).toBe(400);
   });
 
   it("evaluates a real D1 probe window through the scheduled handler", async () => {

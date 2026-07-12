@@ -107,6 +107,18 @@ export async function lookup(
   return null;
 }
 
+/** Rewrite breadcrumbs after `nzip vault update --name` so `nzip where` keeps working. */
+export async function renameVault(
+  oldName: string,
+  newName: string,
+): Promise<void> {
+  const reg = pruneExpired(await load());
+  for (const e of Object.values(reg)) {
+    if (e.vault === oldName) e.vault = newName;
+  }
+  await save(reg);
+}
+
 /** Forget a single site (called from `nzip rm`). */
 export async function forget(
   q: { address?: string; vault?: string; alias?: string },
