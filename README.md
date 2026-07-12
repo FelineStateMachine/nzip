@@ -107,22 +107,55 @@ alias.
 
 ## Architecture
 
+### Program flow
+
 ```mermaid
-flowchart TB
-    CLI["nzip<br/><i>Deno CLI</i>"] -- "push API<br/>bearer token" --> W
+flowchart LR
+    CLI["nzip<br/>Deno CLI"] -- "push API<br/>bearer token" --> W
     V(["visitor"]) -- "GET /2a3f" --> C{"Workers Cache<br/>60s public TTL"}
     C -- "HIT" --> V
-    C -- "MISS / BYPASS" --> W["nzip Worker<br/><i>serve · API · security</i>"]
+    C -- "MISS / BYPASS" --> W["nzip Worker<br/>serve · API"]
     W -- "cacheable response<br/>tagged by site" --> C
-
-    W --> RL["Rate-limit bindings<br/>enumeration · unlock · telemetry"]
     W --> R2[("R2<br/>blobs · manifests")]
-    W --> D1[("D1<br/>site metadata<br/>probe windows · incidents")]
-    W -. "sampled structured events" .-> LOGS["Workers Logs<br/>security.request"]
+    W --> D1[("D1<br/>sites · vaults · history")]
+```
 
-    CRON(["Cron triggers<br/>5 min · daily"]) --> W
-    W -- "incident + digest" --> EMAIL["Email Routing binding<br/>verified destination"]
+### Security lens
+
+```mermaid
+flowchart LR
+    REQ(["request"]) --> SURFACE{"request surface"}
+    SURFACE -- "/api/*" --> TOKEN["bearer-token check"]
+    SURFACE -- "GET /xxxx" --> ENUM["enumeration limiter"]
+    SURFACE -- "POST /xxxx/__unlock" --> UNLOCK["password limiter"]
+    TOKEN --> API["owner API"]
+    ENUM --> SERVE["site lookup / serve"]
+    UNLOCK --> SERVE
+    SERVE --> GATE{"password protected?"}
+    GATE -- "yes" --> COOKIE["PBKDF2 + signed cookie"]
+    GATE -- "no" --> PUBLIC["public response"]
+    ENUM -. "HMAC scanner identity" .-> PROBES[("D1 probe windows")]
+    PROBES --> EVAL["5-minute incident evaluator"]
+    EVAL --> EMAIL["verified-destination email"]
     EMAIL --> INBOX(["operator inbox"])
+```
+
+### Observability lens
+
+```mermaid
+flowchart LR
+    RESP["Worker response"] --> CLASSIFY["classify security-relevant request"]
+    CLASSIFY --> SAMPLE{"deterministic 1%<br/>scanner sample"}
+    SAMPLE -- "normal + selected" --> LOGS["Workers Logs<br/>security.request"]
+    SAMPLE -- "429 + selected" --> RESAMPLE{"secondary 1%<br/>request sample"}
+    SAMPLE -- "not selected" --> DROP["no log event"]
+    RESAMPLE -- "selected" --> LOGS
+    RESAMPLE -- "not selected" --> DROP
+    PROBES[("D1 probe windows")] --> CRON["5-minute aggregation"]
+    CRON --> WINDOW["security.enumeration_window"]
+    LOGS --> DASH["Cloudflare Observability"]
+    WINDOW --> DASH
+    PROBES --> METRICS["D1 row metrics"]
 ```
 
 A push is a stateless three-step protocol, and the manifest itself is the state:
