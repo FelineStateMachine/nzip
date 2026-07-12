@@ -44,6 +44,7 @@ usage:
                                            inspect or update ttl/password
   nzip share <target> [...]                 deprecated alias for nzip site
   nzip ls [vault]                          list sites
+  nzip list [vault]                        alias for nzip ls
   nzip where <target>                      print the local dir this machine pushed from
   nzip rm <target> [--yes]                 delete a site
   nzip status                              server + vault overview
@@ -122,6 +123,7 @@ async function main(): Promise<void> {
         args["no-password"],
       );
     case "ls":
+    case "list":
       return await cmdLs(config, rest[0]);
     case "where":
       return await cmdWhere(config, rest[0]);
