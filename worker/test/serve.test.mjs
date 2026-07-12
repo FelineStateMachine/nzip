@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { serve } from "../src/serve.ts";
+import { hashPassword } from "../src/password.ts";
 
 const HASH = "a".repeat(64);
 
@@ -119,7 +120,16 @@ test("favicon serves the wordmark PNG with a cacheable response", async () => {
   assert.equal(response.headers.get("cache-control"), "public, max-age=86400");
   const bytes = new Uint8Array(await response.arrayBuffer());
   // PNG signature: the embedded icon decoded from base64 intact.
-  assert.deepEqual([...bytes.slice(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.deepEqual([...bytes.slice(0, 8)], [
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+  ]);
   assert.ok(bytes.length > 500);
 });
 
@@ -148,6 +158,70 @@ test("unlock page disables mobile zoom", async () => {
 
   assert.equal(response.status, 401);
   assert.match(await response.text(), /maximum-scale=1, user-scalable=no/);
+});
+
+test("unlock returns to the requested nested page", async () => {
+  const passwordHash = await hashPassword("test");
+  const pageUrl = new URL("https://n.zip/2f9b/docs/guide.html?view=full");
+  const locked = await serve(
+    new Request(pageUrl),
+    envFor({ "docs/guide.html": html }, { password_hash: passwordHash }),
+    pageUrl,
+  );
+  const returnTo = /name="return_to" value="([^"]+)"/.exec(
+    await locked.text(),
+  )?.[1].replaceAll("&amp;", "&");
+  assert.equal(returnTo, "/2f9b/docs/guide.html?view=full");
+
+  const body = new URLSearchParams({ password: "test", return_to: returnTo });
+  const unlockUrl = new URL("https://n.zip/2f9b/__unlock");
+  const unlocked = await serve(
+    new Request(unlockUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "content-length": String(
+          new TextEncoder().encode(body.toString()).length,
+        ),
+      },
+      body,
+    }),
+    envFor({ "docs/guide.html": html }, { password_hash: passwordHash }),
+    unlockUrl,
+  );
+
+  assert.equal(unlocked.status, 303);
+  assert.equal(
+    unlocked.headers.get("location"),
+    "/2f9b/docs/guide.html?view=full",
+  );
+  assert.match(unlocked.headers.get("set-cookie") ?? "", /^nzip_a2f9b=/);
+});
+
+test("unlock rejects a return target outside the locked site", async () => {
+  const passwordHash = await hashPassword("test");
+  const body = new URLSearchParams({
+    password: "test",
+    return_to: "https://example.com/phishing",
+  });
+  const unlockUrl = new URL("https://n.zip/2f9b/__unlock");
+  const response = await serve(
+    new Request(unlockUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "content-length": String(
+          new TextEncoder().encode(body.toString()).length,
+        ),
+      },
+      body,
+    }),
+    envFor({ "index.html": html }, { password_hash: passwordHash }),
+    unlockUrl,
+  );
+
+  assert.equal(response.status, 303);
+  assert.equal(response.headers.get("location"), "/2f9b");
 });
 
 test("unlock rejects an oversized declared body before password verification", async () => {
