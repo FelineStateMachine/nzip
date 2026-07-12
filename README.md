@@ -2,8 +2,8 @@
 
 **Push a directory of HTML from the terminal. Get a four-character URL back.**
 
-_Deno CLI → Cloudflare Worker → R2 + D1. Zero-cost static site hosting with
-optional expiration and/or password protection._
+_Deno CLI → Cloudflare Worker → R2 + D1. Free-tier-oriented static site hosting
+with optional expiration, password protection, and enumeration alerts._
 
 [![JSR](https://jsr.io/badges/@nzip/cli)](https://jsr.io/@nzip/cli)
 
@@ -108,11 +108,21 @@ alias.
 ## Architecture
 
 ```mermaid
-flowchart LR
-    CLI["nzip<br/><i>Deno CLI</i>"] -- "https + bearer" --> W["Worker<br/><i>self-hosted</i>"]
-    W --> R2[("R2<br/>blob/{sha256}<br/>manifest/{sha256}")]
-    W --> D1[("D1<br/>vaults · sites · pushes")]
-    V(["visitor"]) -- "GET /2a3f" --> W
+flowchart TB
+    CLI["nzip<br/><i>Deno CLI</i>"] -- "push API<br/>bearer token" --> W
+    V(["visitor"]) -- "GET /2a3f" --> C{"Workers Cache<br/>60s public TTL"}
+    C -- "HIT" --> V
+    C -- "MISS / BYPASS" --> W["nzip Worker<br/><i>serve · API · security</i>"]
+    W -- "cacheable response<br/>tagged by site" --> C
+
+    W --> RL["Rate-limit bindings<br/>enumeration · unlock · telemetry"]
+    W --> R2[("R2<br/>blobs · manifests")]
+    W --> D1[("D1<br/>site metadata<br/>probe windows · incidents")]
+    W -. "sampled structured events" .-> LOGS["Workers Logs<br/>security.request"]
+
+    CRON(["Cron triggers<br/>5 min · daily"]) --> W
+    W -- "incident + digest" --> EMAIL["Email Routing binding<br/>verified destination"]
+    EMAIL --> INBOX(["operator inbox"])
 ```
 
 A push is a stateless three-step protocol, and the manifest itself is the state:
@@ -126,10 +136,13 @@ A push is a stateless three-step protocol, and the manifest itself is the state:
    TTL/password policy, repointing the site, and appending history
 
 Serving is one D1 read (address → manifest, expiry, password) and two R2 reads,
-with `ETag` revalidation and a 60-second tiered Workers Cache. Cache hits skip
-Worker execution and the D1/R2 reads entirely. Public responses are tagged per
-site and purged when a push, revert, deletion, TTL, or password policy changes;
-protected responses and errors are never cached. Metadata lives in three tables:
+with `ETag` revalidation and a 60-second Workers Cache. Cloudflare checks this
+cache before invoking the Worker, so a hit skips Worker execution and the D1/R2
+reads. Public responses are tagged per site and purged when a push, revert,
+deletion, TTL, or password policy changes; protected responses and errors are
+never cached.
+
+Content metadata lives in three tables:
 
 | table    | keys                                                                             |
 | -------- | -------------------------------------------------------------------------------- |
@@ -137,16 +150,94 @@ protected responses and errors are never cached. Metadata lives in three tables:
 | `sites`  | address (0–65535), vault, alias, current manifest, expiry, password hash/version |
 | `pushes` | per-site history (seq, manifest, note), capped at 10, powers `revert`            |
 
+Security alert state is deliberately separate:
+
+| table                | purpose                                                                  |
+| -------------------- | ------------------------------------------------------------------------ |
+| `security_probes`    | deduplicated five-minute scanner/address observations; retained 7 days  |
+| `security_signals`   | rate-limit confirmations, deduplicated by scanner and window             |
+| `security_incidents` | open/closed state, severity, suppression timestamps, and incident totals |
+
 **GC safety rule:** an R2 object is deleted only if no live site or retained
 history entry references it _and_ it's older than 24 hours, so an in-flight push
 can never lose objects to a concurrent sweep.
+
+## Security and observability
+
+The public address space is intentionally small and human-friendly, so nzip
+treats enumeration as something to observe and rate-limit rather than pretending
+four hex characters are a secret. The two telemetry paths serve different jobs:
+
+| path                         | signal and retention                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------ |
+| Workers Logs                 | structured `security.request` events for a deterministic 1% scanner-identity sample |
+| D1 five-minute probe windows | bounded, unsampled bare-address observations used for automatic incident decisions  |
+
+Log events classify bare addresses, missing address assets, unlock attempts, bad
+API requests, and other scanner-shaped paths. They include the response result,
+derived vault/site slots (for example, `/0123` → vault `0x0`, site `0x123`),
+country, colo, ASN, and an HMAC-derived `scanner_id`. Raw client IPs are neither
+logged nor stored. Automatic invocation logs are disabled, successful site
+assets are omitted, paths are length-bounded, and blocked floods are sampled a
+second time to control log volume.
+
+The five-minute evaluator opens or escalates an enumeration incident on these
+signals:
+
+| severity  | signal                                                                                 |
+| --------- | -------------------------------------------------------------------------------------- |
+| warning   | one scanner tries 20 distinct addresses in 5 minutes                                  |
+| warning   | 128 addresses from 10 scanners in 5 minutes, with at least 90% misses                  |
+| confirmed | an enumeration request reaches the 429 limiter                                        |
+| confirmed | a live hit after 8-address/sequence evidence, or any live hit during an open incident |
+
+Duplicate email is suppressed unless severity increases, volume doubles, a live
+site is hit for the first time, or a new vault is targeted after 30 minutes.
+Active incidents summarize at most hourly and resolve after three quiet windows
+(15 minutes). A daily activity digest is sent only when probes occurred. Alerts
+use a Worker email binding restricted to one verified destination; the
+owner-authenticated `/api/security/test-alert` endpoint validates delivery.
+
+Inspect sampled events under **Workers & Pages → nzip → Observability**, filtering
+on `event = "security.request"`. Each event's `sample_rate` records its sampling
+factor for aggregate estimates. Watch D1 row metrics as the direct free-tier
+budget signal for alert storage, and Worker request/log counts for the overall
+service budget.
+
+## Free-tier design target
+
+nzip is designed so a small personal deployment can stay inside Cloudflare's
+included free usage without disabling security or observability. This is a
+design target, not a promise: account-wide traffic and storage count toward the
+same quotas, Cloudflare can change its limits, and a sufficiently distributed
+attack can exhaust a daily quota.
+
+| resource | how nzip keeps usage bounded | current included usage to watch |
+| -------- | ---------------------------- | ------------------------------- |
+| Workers | short request path; cache checked before invocation | [100,000 requests/day; 10 ms CPU/invocation](https://developers.cloudflare.com/workers/platform/limits/) |
+| Workers Cache | public content only, 60-second TTL, tag purge on mutation | [no separate request allowance](https://developers.cloudflare.com/workers/platform/pricing/); cached Worker requests still count toward Workers usage |
+| Workers Logs | invocation logs off; deterministic 1% identity sample; successful assets omitted | [200,000 log events/day with 3-day retention](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#pricing) |
+| D1 | probe rows deduplicated by scanner/address/window, capped per scanner/location, pruned after 7 days | [5M rows read/day, 100K written/day, 5 GB](https://developers.cloudflare.com/d1/platform/pricing/) |
+| R2 Standard | content-addressed deduplication, retained-history cap, daily GC | [10 GB-month, 1M Class A and 10M Class B operations/month; free egress](https://developers.cloudflare.com/r2/pricing/#free-tier) |
+| Alert email | restricted to a verified Email Routing destination; no arbitrary-recipient sending | [verified-destination sends are free on all plans](https://developers.cloudflare.com/email-service/platform/pricing/) |
+
+On the Workers Free plan, exceeding included daily usage does not create an
+overage bill. D1 queries fail until the quota resets; Worker request-limit
+behavior follows the route's configured fail-open/fail-closed mode. Probe
+persistence runs after the response and catches its own errors, so an exhausted
+alert-storage budget does not stop normal site serving; it does reduce detection
+coverage until the quota resets. Cache hits reduce execution and storage reads,
+but they do not remove the request from the Workers request quota. The telemetry
+rate limiter is best-effort and local to a Cloudflare location; deduplication and
+seven-day pruning provide the durable bounds, while a distributed attack can
+still consume the daily D1 allowance.
 
 ## Repo layout
 
 ```text
 shared/   manifest canonicalization, hashing, addressing (imported by both sides)
 cli/      the nzip command (Deno, no framework), published as jsr:@nzip/cli
-worker/   Cloudflare Worker: serving + API + GC cron (wrangler)
+worker/   Cloudflare Worker: serving, cache, API, security alerts, and GC (wrangler)
 ```
 
 `shared/` is the contract: canonical JSON serialization lives in exactly one
@@ -199,6 +290,7 @@ npx wrangler r2 bucket create nzip-content
 npx wrangler d1 create nzip                       # paste id into wrangler.local.jsonc
 npx wrangler d1 execute nzip --remote --file schema.sql
 openssl rand -hex 32 | npx wrangler secret put NZIP_TOKEN --config wrangler.local.jsonc
+# configure and verify the alert destination; see worker/setup.md
 npx wrangler deploy --config wrangler.local.jsonc
 nzip auth --server https://share.example.com      # use your actual PUBLIC_BASE
 ```
@@ -230,39 +322,10 @@ npx wrangler dev                                  # local R2/D1; token in .dev.v
 nzip auth --server http://localhost:8787 --token dev-token-local-only
 ```
 
-Test the GC cron: `npx wrangler dev --test-scheduled`, then
-`curl "http://localhost:8787/__scheduled?cron=0+4+*+*+*"`.
+Test scheduled handlers with `npx wrangler dev --test-scheduled`, then invoke
+either cron locally:
 
-### Security observability
-
-Workers Logs are enabled by default for structured scan telemetry, with
-automatic invocation logs disabled to keep volume and cost bounded. The Worker
-retains complete request sequences for a deterministic 1% sample of scanner
-identities. Events are emitted as `security.request` and include the request
-class, bounded path, response result, derived vault/site slots for four-hex
-addresses, country, Cloudflare colo, ASN, and an HMAC-derived `scanner_id`; raw
-client IPs are never logged.
-
-Inspect these events under **Workers & Pages → nzip → Observability**, filtering
-on `event = "security.request"`. The `sample_rate` field records the sampling
-factor for aggregate estimates. Normal successful asset requests are omitted,
-while bare address probes, unlock attempts, bad API requests, invalid paths, and
-missing address assets are eligible.
-
-Rejected `429` floods receive a second 1% per-request sample after the identity
-sample. This keeps the allowed probe sequence intact while preventing a single
-blocked client from producing unbounded log volume; each event's `sample_rate`
-reflects the effective rate.
-
-### Enumeration email alerts
-
-The Worker also evaluates bounded, unsampled bare-address observations every
-five minutes and sends incident email through the free Email Routing binding.
-The primary warning is 20 distinct addresses from one scanner in five minutes; a
-distributed 128-address sweep from 10 scanners also warns when at least 90%
-miss. A limiter rejection or a suspicious live-address hit promotes the incident
-to confirmed. Re-alerting is immediate when severity increases or volume
-doubles, otherwise limited to an hourly summary, and an incident resolves after
-15 quiet minutes. An activity digest is also sent daily, but only when probes
-occurred. See [`worker/setup.md`](worker/setup.md#free-security-alert-email) for
-setup and delivery validation.
+```sh
+curl "http://localhost:8787/__scheduled?cron=*/5+*+*+*+*"  # alert evaluation
+curl "http://localhost:8787/__scheduled?cron=0+4+*+*+*"    # GC + digest
+```

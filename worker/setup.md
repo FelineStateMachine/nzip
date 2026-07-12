@@ -2,6 +2,12 @@
 
 Everything here happens once. Day-to-day content pushes never touch wrangler.
 
+The default architecture targets the Workers Free plan. It requires no paid
+Email Sending subscription: alerts use Email Routing to one verified destination.
+Free-tier limits are account-wide, so review the
+[budget notes](../README.md#free-tier-design-target) before exposing a busy or
+multi-tenant deployment.
+
 ```sh
 cd worker
 
@@ -27,7 +33,12 @@ npx wrangler d1 execute nzip --remote --file schema.sql
 openssl rand -hex 32                       # keep this — it's your CLI token
 npx wrangler secret put NZIP_TOKEN --config wrangler.local.jsonc
 
-# 6. first deploy
+# 6. alert destination (click the verification link before deploying)
+npx wrangler email routing enable example.com
+npx wrangler email routing addresses create operator@example.com
+# Edit send_email and ALERT_EMAIL_* in wrangler.local.jsonc as shown below.
+
+# 7. first deploy
 npx wrangler deploy --config wrangler.local.jsonc
 ```
 
@@ -67,9 +78,20 @@ at least 90% misses. A rate-limit hit or a suspicious live-address hit confirms
 the incident. Duplicate email is suppressed unless severity increases or volume
 doubles, active incidents summarize hourly, and three quiet windows (15 minutes)
 resolve the incident. Probe rows are deduplicated by scanner/address, capped at
-30 per scanner per minute, contain no raw IP, and are pruned after seven days. A
-daily activity digest is sent only when probes occurred in the preceding 24
-hours.
+30 per scanner per minute in each Cloudflare location, contain no raw IP, and are
+pruned after seven days. A daily activity digest is sent only when probes
+occurred in the preceding 24 hours.
+
+### Operational checks after deployment
+
+- **Workers Metrics:** request volume and errors; cache hits reduce execution and
+  storage reads but still count as Worker requests.
+- **Workers Observability:** filter `event = "security.request"`; Free retains
+  Workers Logs for three days.
+- **D1 Metrics → Row Metrics:** rows written is the main enumeration-telemetry
+  budget; Free currently includes 100,000 written rows per day.
+- **Email Routing:** the destination must remain verified. A successful test
+  endpoint response means Cloudflare accepted the message for delivery.
 
 `routes[0].pattern` and `vars.PUBLIC_BASE` are required user-provided values.
 `PUBLIC_BASE` is the origin printed in share URLs and the server URL passed to
