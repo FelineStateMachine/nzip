@@ -5,12 +5,7 @@ import {
   VAULT_SLOTS,
   vaultSlotOf,
 } from "../../shared/mod.ts";
-import type {
-  PushInfo,
-  SiteDetail,
-  SiteInfo,
-  VaultInfo,
-} from "../../shared/mod.ts";
+import type { PushInfo, SiteDetail, SiteInfo, VaultInfo } from "../../shared/mod.ts";
 import { type Env, siteUrl } from "./env.ts";
 
 export const HISTORY_CAP = 10;
@@ -30,6 +25,7 @@ export interface SiteRow {
 export interface VaultRow {
   slot: number;
   name: string;
+  description: string | null;
   created_at: number;
 }
 
@@ -201,15 +197,22 @@ export async function siteHistory(
 
 export async function listVaults(env: Env): Promise<VaultInfo[]> {
   const res = await env.DB.prepare(
-    `SELECT v.slot, v.name, v.created_at, COUNT(s.address) AS site_count
+    `SELECT v.slot, v.name, v.description, v.created_at, COUNT(s.address) AS site_count
      FROM vaults v LEFT JOIN sites s ON s.vault_slot = v.slot
      GROUP BY v.slot ORDER BY v.slot`,
   ).all<
-    { slot: number; name: string; created_at: number; site_count: number }
+    {
+      slot: number;
+      name: string;
+      description: string | null;
+      created_at: number;
+      site_count: number;
+    }
   >();
   return res.results.map((r) => ({
     slot: r.slot,
     name: r.name,
+    description: r.description,
     createdAt: r.created_at,
     siteCount: r.site_count,
   }));
@@ -219,6 +222,7 @@ export async function createVault(
   env: Env,
   name: string,
   slot?: number,
+  description: string | null = null,
 ): Promise<VaultRow> {
   const now = Math.floor(Date.now() / 1000);
   let chosen = slot;
@@ -236,10 +240,36 @@ export async function createVault(
     if (chosen === undefined) throw new Error("all 16 vault slots are taken");
   }
   await env.DB.prepare(
-    "INSERT INTO vaults (slot, name, created_at) VALUES (?, ?, ?)",
+    "INSERT INTO vaults (slot, name, description, created_at) VALUES (?, ?, ?, ?)",
   )
-    .bind(chosen, name, now).run();
-  return { slot: chosen, name, created_at: now };
+    .bind(chosen, name, description, now).run();
+  return { slot: chosen, name, description, created_at: now };
+}
+
+export async function updateVault(
+  env: Env,
+  currentName: string,
+  patch: { name?: string; description?: string | null },
+): Promise<VaultInfo | null> {
+  const assignments: string[] = [];
+  const values: unknown[] = [];
+  if (patch.name !== undefined) {
+    assignments.push("name = ?");
+    values.push(patch.name);
+  }
+  if (patch.description !== undefined) {
+    assignments.push("description = ?");
+    values.push(patch.description);
+  }
+  if (assignments.length === 0) return null;
+
+  const result = await env.DB.prepare(
+    `UPDATE vaults SET ${assignments.join(", ")} WHERE name = ?`,
+  ).bind(...values, currentName).run();
+  if (result.meta.changes === 0) return null;
+
+  const updatedName = patch.name ?? currentName;
+  return (await listVaults(env)).find((vault) => vault.name === updatedName) ?? null;
 }
 
 export function siteRowToInfo(

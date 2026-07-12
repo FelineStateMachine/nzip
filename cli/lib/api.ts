@@ -144,8 +144,19 @@ export class ApiClient {
     return this.request("GET", "/api/vaults");
   }
 
-  createVault(name: string, slot?: number): Promise<VaultInfo> {
-    return this.request("POST", "/api/vaults", JSON.stringify({ name, slot }));
+  createVault(name: string, slot?: number, description?: string): Promise<VaultInfo> {
+    return this.request("POST", "/api/vaults", JSON.stringify({ name, slot, description }));
+  }
+
+  updateVault(
+    currentName: string,
+    patch: { name?: string; description?: string },
+  ): Promise<VaultInfo> {
+    return this.request(
+      "PATCH",
+      `/api/vaults/${encodeURIComponent(currentName)}`,
+      JSON.stringify(patch),
+    );
   }
 }
 

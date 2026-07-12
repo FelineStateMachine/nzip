@@ -8,6 +8,8 @@ export async function cmdVault(
   sub: string | undefined,
   name: string | undefined,
   slot: number | undefined,
+  newName: string | undefined,
+  description: string | undefined,
 ): Promise<void> {
   const api = new ApiClient(config);
 
@@ -19,10 +21,11 @@ export async function cmdVault(
         return;
       }
       console.log(table(
-        ["SLOT", "VAULT", "SITES"],
+        ["SLOT", "VAULT", "DESCRIPTION", "SITES"],
         vaults.map((v) => [
           `0x${v.slot.toString(16)}`,
           v.name === config.defaultVault ? bold(`${v.name} *`) : v.name,
+          v.description ?? "",
           String(v.siteCount),
         ]),
       ));
@@ -31,13 +34,13 @@ export async function cmdVault(
   }
 
   if (sub === "add") {
-    if (!name) fail("usage: nzip vault add <name> [--slot N]");
+    if (!name) fail("usage: nzip vault add <name> [--slot N] [--description TEXT]");
     try {
       assertVaultAllowed(name, config);
     } catch (e) {
       return fail((e as Error).message);
     }
-    const v = await api.createVault(name, slot);
+    const v = await api.createVault(name, slot, description);
     const madeDefault = !config.defaultVault;
     if (madeDefault) await saveConfig({ ...config, defaultVault: v.name });
     emit(() => {
@@ -50,6 +53,35 @@ export async function cmdVault(
       ...v,
       default: madeDefault || config.defaultVault === v.name,
     });
+    return;
+  }
+
+  if (sub === "update") {
+    if (!name || (newName === undefined && description === undefined)) {
+      fail("usage: nzip vault update <name> [--name NEW_NAME] [--description TEXT]");
+    }
+    try {
+      assertVaultAllowed(name, config);
+    } catch (e) {
+      return fail((e as Error).message);
+    }
+    const v = await api.updateVault(name, { name: newName, description });
+    if (newName !== undefined && newName !== name) {
+      await saveConfig({
+        ...config,
+        ...(config.defaultVault === name ? { defaultVault: newName } : {}),
+        ...(config.allowVaults
+          ? { allowVaults: config.allowVaults.map((vault) => vault === name ? newName : vault) }
+          : {}),
+      });
+    }
+    emit(
+      () =>
+        console.log(
+          `${green("✓")} vault ${bold(name)} updated${newName ? ` as ${bold(newName)}` : ""}`,
+        ),
+      { ok: true, ...v },
+    );
     return;
   }
 
@@ -70,5 +102,5 @@ export async function cmdVault(
     return;
   }
 
-  fail(`unknown vault subcommand: ${sub} (use ls | add | default)`);
+  fail(`unknown vault subcommand: ${sub} (use ls | add | update | default)`);
 }

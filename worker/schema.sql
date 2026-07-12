@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS vaults (
   slot INTEGER PRIMARY KEY CHECK (slot BETWEEN 0 AND 15),
   name TEXT NOT NULL UNIQUE,
+  description TEXT,
   created_at INTEGER NOT NULL
 );
 

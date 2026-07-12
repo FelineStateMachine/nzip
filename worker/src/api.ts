@@ -4,7 +4,7 @@ import { ApiError, apiErrorResponse } from "./api/errors.ts";
 import { handleBlobPut, handleCommit, handlePrepare } from "./api/push.ts";
 import { handleSite, handleSiteList } from "./api/sites.ts";
 import { handleStatus } from "./api/status.ts";
-import { handleVaults } from "./api/vaults.ts";
+import { handleVault, handleVaults } from "./api/vaults.ts";
 import { sendAlertTest } from "./security_alerts.ts";
 
 /** Authenticated management API router. Route handlers own validation and storage concerns. */
@@ -41,6 +41,9 @@ export async function api(
       (method === "GET" || method === "POST")
     ) {
       return await handleVaults(request, env);
+    }
+    if (parts[1] === "vaults" && parts.length === 3 && method === "PATCH") {
+      return await handleVault(request, env, parts[2]);
     }
     if (parts[1] === "sites" && parts.length === 2 && method === "GET") {
       return await handleSiteList(url, env);

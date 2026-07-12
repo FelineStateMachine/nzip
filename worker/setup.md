@@ -65,8 +65,8 @@ Click the verification link Cloudflare sends, then configure:
 ```
 
 Apply `migrations/0002_security_alerts.sql` and
-`migrations/0003_security_notification_outbox.sql` before deploying an upgraded
-Worker.
+`migrations/0003_security_notification_outbox.sql`, then
+`migrations/0004_vault_descriptions.sql` before deploying an upgraded Worker.
 After deployment, send a delivery test through the owner-authenticated endpoint:
 
 ```sh
@@ -109,6 +109,7 @@ cd worker
 npx wrangler d1 execute nzip --remote --file migrations/0001_auth_version.sql
 npx wrangler d1 execute nzip --remote --file migrations/0002_security_alerts.sql
 npx wrangler d1 execute nzip --remote --file migrations/0003_security_notification_outbox.sql
+npx wrangler d1 execute nzip --remote --file migrations/0004_vault_descriptions.sql
 ```
 
 > **Cron gotcha:** deploying the `triggers` block fails with a 403 (API error

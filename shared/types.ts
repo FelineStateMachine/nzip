@@ -130,6 +130,8 @@ export interface VaultInfo {
   slot: number;
   /** Registered lowercase vault name. */
   name: string;
+  /** Optional context describing the vault's intended audience or purpose. */
+  description: string | null;
   /** Unix timestamp, in seconds, when the vault was registered. */
   createdAt: number;
   /** Number of currently live sites assigned to this vault. */

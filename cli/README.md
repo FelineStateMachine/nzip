@@ -38,7 +38,10 @@ and site is already there.
 
 ```text
 nzip auth [--server URL] [--token T]     authenticate and save config
-nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0–0xf)
+nzip vault add <name> [--slot N] [--description TEXT]
+                                         register a vault (16 slots, 0x0–0xf)
+nzip vault update <name> [--name NEW_NAME] [--description TEXT]
+                                         rename or describe a vault
 nzip vault ls | default <name>           list vaults / set the default
 nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
 nzip cp <target> [dir] [--overwrite]
@@ -49,6 +52,9 @@ nzip rm <target> [--yes]                 delete a site
 nzip status                              server + vault overview
 nzip revert <target> [--to N] [--list]   repoint to a previous push
 ```
+
+Vault descriptions are included in `vault ls --json`. Use
+`nzip vault update <name> --description ""` to clear one.
 
 Password and TTL are committed with the content. On a new site, omitting `--password` creates an
 unprotected site; on an existing target, omission preserves its current password. Pass

@@ -74,7 +74,10 @@ Commands accept any of three target forms:
 
 ```text
 nzip auth [--server URL] [--token T]     authenticate and save config
-nzip vault add <name> [--slot N]         register a vault (16 slots, 0x0–0xf)
+nzip vault add <name> [--slot N] [--description TEXT]
+                                         register a vault (16 slots, 0x0–0xf)
+nzip vault update <name> [--name NEW_NAME] [--description TEXT]
+                                         rename or describe a vault
 nzip vault ls | default <name>           list vaults / set the default
 nzip push <dir|file> [target] [--ttl …] [--password PW | --no-password]
 nzip cp <target> [dir] [--overwrite]        copy the current hosted bundle locally
@@ -85,6 +88,10 @@ nzip rm <target> [--yes]                 delete a site
 nzip status                              server + vault overview
 nzip revert <target> [--to N] [--list]   repoint to a previous push
 ```
+
+Vault descriptions are returned by `vault ls --json` so agents can choose an
+appropriate destination from its purpose or audience. Pass an empty description
+to `vault update` to clear it.
 
 Password and TTL are committed with the content. On a new site, omitting
 `--password` creates an unprotected site; on an existing target, omission
@@ -194,7 +201,7 @@ Content metadata lives in three tables:
 
 | table    | keys                                                                             |
 | -------- | -------------------------------------------------------------------------------- |
-| `vaults` | slot (0–15), name                                                                |
+| `vaults` | slot (0–15), name, optional description                                          |
 | `sites`  | address (0–65535), vault, alias, current manifest, expiry, password hash/version |
 | `pushes` | per-site history (seq, manifest, note), capped at 10, powers `revert`            |
 

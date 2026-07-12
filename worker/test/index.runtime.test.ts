@@ -1,9 +1,4 @@
-import {
-  createExecutionContext,
-  env,
-  SELF,
-  waitOnExecutionContext,
-} from "cloudflare:test";
+import { createExecutionContext, env, SELF, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import worker from "../src/index.ts";
 import { hashPassword, verifyPassword } from "../src/password.ts";
@@ -39,6 +34,58 @@ describe("Worker runtime", () => {
 
     expect(response.status).toBe(200);
     expect((await response.json<{ version: string }>()).version).toBe("0.3.1");
+  });
+
+  it("creates, lists, renames, and redescribes vaults", async () => {
+    const headers = {
+      authorization: "Bearer runtime-test-token",
+      "content-type": "application/json",
+    };
+    const created = await SELF.fetch("https://share.example.com/api/vaults", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "agent-work",
+        description: "Scratch space for agent-generated review artifacts",
+      }),
+    });
+    expect(created.status).toBe(201);
+    expect(await created.json()).toMatchObject({
+      name: "agent-work",
+      description: "Scratch space for agent-generated review artifacts",
+      siteCount: 0,
+    });
+
+    const updated = await SELF.fetch(
+      "https://share.example.com/api/vaults/agent-work",
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          name: "reviews",
+          description: "Human review links; safe to share with collaborators",
+        }),
+      },
+    );
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({
+      name: "reviews",
+      description: "Human review links; safe to share with collaborators",
+    });
+
+    const listed = await SELF.fetch("https://share.example.com/api/vaults", { headers });
+    expect(await listed.json()).toContainEqual(expect.objectContaining({
+      name: "reviews",
+      description: "Human review links; safe to share with collaborators",
+    }));
+
+    const cleared = await SELF.fetch("https://share.example.com/api/vaults/reviews", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ description: "" }),
+    });
+    expect(cleared.status).toBe(200);
+    expect(await cleared.json()).toMatchObject({ name: "reviews", description: null });
   });
 
   it("evaluates a real D1 probe window through the scheduled handler", async () => {

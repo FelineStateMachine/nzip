@@ -141,10 +141,15 @@ export async function cmdStatus(config: Config): Promise<void> {
     );
     if (status.vaults.length > 0) {
       console.log(table(
-        ["SLOT", "VAULT", "SITES"],
+        ["SLOT", "VAULT", "DESCRIPTION", "SITES"],
         status.vaults.map((
           v,
-        ) => [`0x${v.slot.toString(16)}`, v.name, String(v.siteCount)]),
+        ) => [
+          `0x${v.slot.toString(16)}`,
+          v.name,
+          v.description ?? "",
+          String(v.siteCount),
+        ]),
       ));
     }
   }, { ...status, server: config.server });
