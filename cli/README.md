@@ -50,6 +50,11 @@ nzip ls [vault]                          list sites
 nzip where <target>                      print the local dir this machine pushed from
 nzip rm <target> [--yes]                 delete a site
 nzip status                              server + vault overview
+nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+nzip notify test                         send a diagnostic notification
+nzip notify approve <code> --name NAME [--yes]
+nzip notify devices                      list paired notification devices
+nzip notify revoke <device-id> [--yes]   revoke a notification device
 nzip revert <target> [--to N] [--list]   repoint to a previous push
 ```
 
@@ -65,6 +70,24 @@ a compatibility alias for `nzip site`.
 It uses the configured bearer token, verifies file hashes, and never exposes source via the public
 page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were never
 stored. The former `nzip download` command remains available as a compatibility alias.
+
+## Notifications
+
+Pairing starts from the deployment root. After the phone shows a code, approve it from the
+authenticated CLI:
+
+```sh
+nzip notify approve ABCD-1234 --name "Personal phone"
+nzip notify devices
+nzip notify "Report ready" --title "nzip" --open work:report
+```
+
+`--open` accepts an existing nzip target and applies the same local vault guardrails as other
+target-aware commands. It never accepts an arbitrary URL. `nzip notify test` uses the ordinary
+notification delivery path. Use `nzip notify revoke <device-id> --yes` to remove a device.
+
+Notification content may appear on a lock screen. Never include passwords, tokens, private URLs, or
+sensitive personal data in a title or body.
 
 See the [project README](https://github.com/FelineStateMachine/nzip) for how addresses work,
 self-hosting setup, and architecture. MIT licensed.

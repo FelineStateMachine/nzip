@@ -138,6 +138,18 @@ test("unlock requires a declared request size", async () => {
   assert.equal(response.status, 411);
 });
 
+test("unlock page disables mobile zoom", async () => {
+  const url = new URL("https://n.zip/2f9b");
+  const response = await serve(
+    new Request(url),
+    envFor({ "index.html": html }, { password_hash: "hash" }),
+    url,
+  );
+
+  assert.equal(response.status, 401);
+  assert.match(await response.text(), /maximum-scale=1, user-scalable=no/);
+});
+
 test("unlock rejects an oversized declared body before password verification", async () => {
   const url = new URL("https://n.zip/2f9b/__unlock");
   const response = await serve(

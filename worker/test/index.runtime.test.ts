@@ -18,6 +18,7 @@ describe("Worker runtime", () => {
 
     expect(response.headers.get("set-cookie")).toBeNull();
     expect(html).toContain('id="pair"');
+    expect(html).toContain("maximum-scale=1, user-scalable=no");
     expect(html).not.toContain('<link rel="manifest"');
     const count = await env.DB.prepare(
       "SELECT COUNT(*) AS count FROM notification_devices",

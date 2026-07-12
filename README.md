@@ -59,6 +59,9 @@ Commands accept any of three target forms:
   change protection later.
 - **Single-user by design.** One bearer token, stored as a Worker secret and in
   `~/.config/nzip/config.json` (mode 0600).
+- **Owner notifications.** Pair explicitly approved phones from the quiet root
+  PWA, then send Web Push notifications from the authenticated CLI. Clicks may
+  open `/` or a manifest-pinned nzip site; arbitrary external URLs are refused.
 - **Locates itself.** `nzip where <target>` prints the local directory this
   machine pushed a site from. A breadcrumb registry
   (`~/.config/nzip/paths.json`) records the source path on every push and
@@ -86,6 +89,11 @@ nzip ls [vault]                          list sites
 nzip where <target>                      print the local dir this machine pushed from
 nzip rm <target> [--yes]                 delete a site
 nzip status                              server + vault overview
+nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]
+nzip notify test                         send a diagnostic notification
+nzip notify approve <code> --name NAME [--yes]
+nzip notify devices                      list paired notification devices
+nzip notify revoke <device-id> [--yes]   revoke a notification device
 nzip revert <target> [--to N] [--list]   repoint to a previous push
 ```
 
@@ -111,6 +119,27 @@ every downloaded file against the hosted manifest. It can only restore uploaded
 files—not dotfiles, `.nzipignore`, or other local project metadata excluded from
 a push. The former `nzip download` command remains available as a compatibility
 alias.
+
+### Owner notifications
+
+Open the deployment root on a phone, tap `pair`, and approve the displayed code
+from an authenticated terminal:
+
+```sh
+nzip notify approve ABCD-1234 --name "Personal phone"
+```
+
+Wait for `paired` before installing the PWA. In the installed app, tap
+`notifications off` to request permission and attach the subscription. Send a
+message with `nzip notify "Build finished"`; add `--open work:report` to open an
+existing same-origin site when the notification is tapped. Use
+`nzip notify devices` to inspect delivery health and `nzip notify revoke` to
+remove a device.
+
+Notification titles and bodies may be visible on a lock screen. Never put
+passwords, tokens, private URLs, or sensitive personal data in them. If an
+installed app loses its pairing cookie, remove it, pair again in the browser,
+wait for `paired`, and reinstall it.
 
 ## Architecture
 
@@ -213,6 +242,9 @@ Security alert state is deliberately separate:
 | `security_signals`       | rate-limit confirmations, deduplicated by scanner and window             |
 | `security_incidents`     | open/closed state, severity, suppression timestamps, and incident totals |
 | `security_notifications` | durable email payloads, delivery attempts, and retry state               |
+| `notification_devices`   | approved claims and active Web Push subscriptions                        |
+| `notification_events`    | bounded payloads and manifest-pinned click targets                       |
+| `notification_deliveries`| leased per-device attempts, retries, and terminal outcomes              |
 
 **GC safety rule:** an R2 object is deleted only if no live site or retained
 history entry references it _and_ it's older than 24 hours, so an in-flight push

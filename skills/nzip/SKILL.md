@@ -101,6 +101,13 @@ Prefer `--json` when consuming command output programmatically.
 - Review history: `nzip revert <target> --list --json`
 - Restore history: `nzip revert <target> --to <push-number>`
 - Delete only on explicit request: `nzip rm <target> --yes`
+- List notification devices: `nzip notify devices --json`
+- Approve a user-supplied pairing code:
+  `nzip notify approve <code> --name <name> [--yes]`
+- Send only on explicit request:
+  `nzip notify <body> [--title TEXT] [--open TARGET] [--tag TEXT]`
+- Exercise the ordinary delivery path: `nzip notify test`
+- Revoke only on explicit request: `nzip notify revoke <device-id> --yes`
 
 Use password protection when the content or user requires it; `nzip push` accepts the same
 `--password <pw> | --no-password` flags to set it at publish time. Vault descriptions appear in
@@ -109,6 +116,14 @@ clear one. A vault rename updates the invoking client's default vault, allow-lis
 records, but other clients keep the old name; renaming to a name outside `allowVaults` is refused.
 Treat `revert`, vault renames, password changes, TTL changes, and deletion as state changes; do not
 perform them while merely diagnosing. Never infer deletion confirmation.
+
+Notifications are external, lock-screen-visible side effects. Do not send,
+test, approve, or revoke unless the user explicitly requests that action. Never
+put credentials, private URLs, sensitive personal data, or other secrets in a
+notification title or body. Prefer `--open <target>` for click-throughs because
+the CLI resolves an existing nzip site, applies vault guardrails, and sends only
+a same-origin path. A pairing code is short-lived but is not sufficient on its
+own; approval still uses the configured owner bearer token.
 
 ## Sane defaults
 

@@ -62,6 +62,9 @@ errors go to stderr as {"ok":false,"error":…,"hint":…} with a suggested next
 
 vault guard: set "allowVaults": ["home"] in config.json to restrict this install
 to named vaults — pushes/aliases outside the list are refused (agent guardrail).
+
+notification privacy: titles and bodies may appear on a lock screen; never include
+passwords, tokens, private URLs, or sensitive personal data.
 `;
 
 async function main(): Promise<void> {
