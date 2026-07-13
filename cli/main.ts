@@ -70,6 +70,13 @@ notification privacy: titles and bodies may appear on a lock screen; never inclu
 passwords, tokens, private URLs, or sensitive personal data.
 `;
 
+/**
+ * Runs the nzip command-line interface with the supplied arguments.
+ *
+ * @param argv Command-line arguments without the executable name. Defaults to
+ * the current process arguments.
+ * @throws If configuration, validation, or a command handler fails.
+ */
 export async function main(argv = Deno.args): Promise<void> {
   const args = parseArgs(argv, {
     string: [
