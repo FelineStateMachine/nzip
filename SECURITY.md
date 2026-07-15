@@ -4,6 +4,13 @@ nzip is a personal, single-owner service. Its short public URLs are convenient a
 secrets. Security comes from explicit authentication, password protection where needed, bounded
 public surfaces, owner-approved device enrollment, and observable abuse controls.
 
+Only publish content you trust. Sites hosted at `https://<deployment>/<address>/` share one browser
+origin. They therefore share origin-scoped storage and credentials, including localStorage,
+IndexedDB, OPFS, CacheStorage, and passkey relying-party identity. Path-scoped service workers and
+unlock cookies do not create an isolation boundary: script in one site can request another site's
+path, and the browser can attach that site's unlock cookie. Password protection gates
+unauthenticated network access; it does not isolate mutually untrusted sites.
+
 ## Reporting a vulnerability
 
 Do not disclose a vulnerability in a public issue. Use the repository's private security advisory
@@ -16,6 +23,9 @@ reproduction steps, impact, and any suggested mitigation.
 - The bearer token stays in Worker secrets and the CLI's mode-0600 configuration file; browsers and
   installed notification apps never receive it.
 - Public site addresses occupy only 16 bits and should be treated as enumerable.
+- Public sites are mutually trusted because all path-hosted addresses share the deployment origin.
+  Use separate per-site hostnames before hosting mutually untrusted applications or relying on
+  site-specific browser identity or storage isolation.
 - Password-protected sites use PBKDF2 hashes and signed, versioned cookies. Changing password policy
   invalidates existing cookies immediately.
 - Notification click targets are same-origin paths pinned to an existing site manifest. Arbitrary
