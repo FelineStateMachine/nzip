@@ -6,6 +6,15 @@ import { amber, bold, cyan, dim, emit, fail, green, parseTtl, ttlLeft } from "..
 
 const UPLOAD_CONCURRENCY = 6;
 
+export function formatPushPolicy(
+  expiresAt: number | null,
+  protectedSite: boolean,
+): string {
+  const expiry = expiresAt === null ? "forever" : `expires in ${ttlLeft(expiresAt)}`;
+  const passwordStatus = protectedSite ? "password protected" : "no password";
+  return `${expiry}, ${passwordStatus}`;
+}
+
 export async function cmdPush(
   config: Config,
   path: string | undefined,
@@ -100,12 +109,12 @@ export async function cmdPush(
   }).catch(() => {});
 
   const label = res.alias ? `${"vault" in target ? target.vault : "?"}:${res.alias}` : res.address;
-  const expiry = res.expiresAt === null ? "forever" : `expires in ${ttlLeft(res.expiresAt)}`;
+  const policy = formatPushPolicy(res.expiresAt, res.protected);
   emit(
     () =>
       console.log(
         `${green("✓")} pushed ${bold(label)} → ${cyan(res.url)}  ${
-          dim(`(${expiry}, push #${res.seq})`)
+          dim(`(${policy}, push #${res.seq})`)
         }`,
       ),
     {

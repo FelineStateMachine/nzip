@@ -170,6 +170,8 @@ async function handleRevert(
     url: siteUrl(env, address),
     alias: site.alias,
     manifestHash: target.manifestHash,
+    expiresAt: site.expires_at,
+    protected: site.password_hash !== null,
     revertedTo: target.seq,
     seq,
   });

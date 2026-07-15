@@ -104,13 +104,13 @@ export async function handleCommit(
     );
   }
 
-  const expiresAt = ttlToExpiry(body.ttl);
   const target = body.target as Target;
   let address: number;
   let alias: string | null = null;
   let isNew: boolean;
+  let existingSite: Awaited<ReturnType<typeof getSiteByAddress>> = null;
   if ("address" in target) {
-    const existing = await getSiteByAddress(env, target.address);
+    existingSite = await getSiteByAddress(env, target.address);
     const slot = vaultSlotOf(target.address);
     if (!(await getVaultBySlot(env, slot))) {
       throw new ApiError(
@@ -119,8 +119,8 @@ export async function handleCommit(
       );
     }
     address = target.address;
-    alias = existing?.alias ?? null;
-    isNew = !existing;
+    alias = existingSite?.alias ?? null;
+    isNew = !existingSite;
   } else {
     const vault = await getVaultByName(env, target.vault);
     if (!vault) throw new ApiError(404, `unknown vault: ${target.vault}`);
@@ -128,17 +128,24 @@ export async function handleCommit(
     if (alias !== null && !isValidName(alias)) {
       throw new ApiError(400, `invalid alias: ${alias}`);
     }
-    const existing = alias === null
+    existingSite = alias === null
       ? null
       : await resolveTarget(env, { vault: target.vault, alias });
-    if (existing) {
-      address = existing.address;
+    if (existingSite) {
+      address = existingSite.address;
       isNew = false;
     } else {
       address = await allocateAddress(env, vault.slot);
       isNew = true;
     }
   }
+
+  const expiresAt = body.ttl === undefined && existingSite
+    ? existingSite.expires_at
+    : ttlToExpiry(body.ttl);
+  const protectedSite = passwordHash === undefined && existingSite
+    ? existingSite.password_hash !== null
+    : passwordHash !== null && passwordHash !== undefined;
 
   if (!(await env.CONTENT.head(`manifest/${hash}`))) {
     await env.CONTENT.put(`manifest/${hash}`, bytes);
@@ -160,6 +167,7 @@ export async function handleCommit(
     alias,
     manifestHash: hash,
     expiresAt,
+    protected: protectedSite,
     seq,
   });
 }

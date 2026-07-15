@@ -64,7 +64,7 @@ export interface CommitRequest {
   manifest: Manifest;
   /** Address or vault destination that should receive the new version. */
   target: Target;
-  /** Lifetime in days, `"forever"` for no expiry, or omitted for the server default. */
+  /** Lifetime in days, `"forever"` for no expiry, or omitted to preserve an existing value (14 days for a new site). */
   ttl?: number | "forever";
   /** Password to set, `null` to clear it, or omitted to preserve an existing value. */
   password?: string | null;
@@ -82,6 +82,8 @@ export interface CommitResponse {
   manifestHash: string;
   /** Unix expiry timestamp in seconds, or `null` for a permanent site. */
   expiresAt: number | null;
+  /** Whether visitors must unlock the committed site with a password. */
+  protected: boolean;
   /** Monotonically increasing push sequence number within this site. */
   seq: number;
 }

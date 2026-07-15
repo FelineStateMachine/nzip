@@ -72,9 +72,9 @@ nzip
 Vault descriptions are included in `vault ls --json`. Use
 `nzip vault update <name> --no-description` to clear one.
 
-Password and TTL are committed with the content. On a new site, omitting `--password` creates an
-unprotected site; on an existing target, omission preserves its current password. Pass
-`--no-password` to clear protection explicitly.
+Password and TTL are committed with the content. On a new site, omitting `--ttl` uses 14 days and
+omitting `--password` creates an unprotected site. On an existing target, omitted settings preserve
+their current values. Pass `--no-password` to clear protection explicitly.
 
 `nzip site cp work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty
 directory. It uses the configured bearer token, verifies file hashes, and never exposes source via

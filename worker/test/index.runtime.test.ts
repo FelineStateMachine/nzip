@@ -200,6 +200,64 @@ describe("Worker runtime", () => {
     expect((await response.json<{ version: string }>()).version).toBe("0.7.1");
   });
 
+  it("preserves TTL and password settings when repushing without policy flags", async () => {
+    const address = 0xeffe;
+    const expiresAt = Math.floor(Date.now() / 1000) + 90 * 86_400;
+    const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const oldManifest = "a".repeat(64);
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO vaults (slot, name, created_at) VALUES (?, ?, ?)",
+      ).bind(14, "repush-policy", Math.floor(Date.now() / 1000)),
+      env.DB.prepare(
+        `INSERT INTO sites
+         (address, vault_slot, alias, current_manifest, created_at, updated_at, expires_at, password_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        address,
+        14,
+        "keep-settings",
+        oldManifest,
+        Math.floor(Date.now() / 1000),
+        Math.floor(Date.now() / 1000),
+        expiresAt,
+        "existing-password-hash",
+      ),
+    ]);
+    await env.CONTENT.put(`blob/${emptyHash}`, new Uint8Array());
+
+    const response = await SELF.fetch("https://share.demo.dev/api/push/commit", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer runtime-test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        manifest: {
+          v: 1,
+          files: {
+            "index.html": { h: emptyHash, s: 0, ct: "text/html; charset=utf-8" },
+          },
+        },
+        target: { address },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      address: "effe",
+      expiresAt,
+      protected: true,
+    });
+    const stored = await env.DB.prepare(
+      "SELECT expires_at, password_hash FROM sites WHERE address = ?",
+    ).bind(address).first<{ expires_at: number | null; password_hash: string | null }>();
+    expect(stored).toEqual({
+      expires_at: expiresAt,
+      password_hash: "existing-password-hash",
+    });
+  });
+
   it("creates, lists, renames, and redescribes vaults", async () => {
     const headers = {
       authorization: "Bearer runtime-test-token",
