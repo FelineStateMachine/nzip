@@ -59,7 +59,9 @@ nzip uses two public surfaces:
 The control path permanently redirects to the artifact hostname; it never serves
 artifact bytes. This separation gives every hosted site its own browser storage,
 service workers, host-only nzip unlock cookie, and default passkey relying-party
-ID.
+ID. Artifact responses also send `Origin-Agent-Cluster: ?1` so browsers keep
+each site in an origin-keyed agent cluster. Do not replace it with the obsolete
+`Permissions-Policy: document-domain=()` directive.
 
 New site builds should use `/` as their deployment base; the address is no
 longer part of the asset path and no reservation/rebuild/repush cycle is needed.
@@ -118,6 +120,23 @@ traffic should include both the apex and valid site hostnames. The Worker's own
 rate-limit bindings remain authoritative for address enumeration and
 `POST /__unlock`, so the optional edge rule does not consume the Free plan's
 single rate-limit rule.
+
+### Free-plan RUM exclusion
+
+Cloudflare can automatically inject its Real User Monitoring beacon into HTML
+on Free-plan zones. Hosted artifacts should remain byte-for-byte static and
+should not produce `/cdn-cgi/rum` requests during PWA reloads. Add a
+Configuration Rule named `nzip: disable RUM on artifact hosts` with this
+expression:
+
+```text
+ends_with(lower(http.host), ".n.zip")
+```
+
+Set its action to **Disable Real User Monitoring (RUM)**. Adapt the suffix for
+other zones. This keeps RUM available on the control origin while disabling it
+for every isolated artifact hostname. Use a Configuration Rule for this on the
+Free plan; per-host Web Analytics rules are not included there.
 
 Enable `Always Use HTTPS` for the entire zone. Once every wildcard hostname has
 a valid certificate, enable HSTS with a real duration; begin without `preload`,

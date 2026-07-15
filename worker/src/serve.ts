@@ -24,7 +24,7 @@ const NOT_FOUND_PAGE =
 const MAX_UNLOCK_BODY_BYTES = 4096;
 const MAX_PASSWORD_LENGTH = 256;
 const ARTIFACT_SECURITY_HEADERS = {
-  "permissions-policy": "document-domain=()",
+  "origin-agent-cluster": "?1",
 } as const;
 
 function htmlResponse(

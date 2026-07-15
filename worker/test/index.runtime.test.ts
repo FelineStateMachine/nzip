@@ -301,9 +301,8 @@ describe("Worker runtime", () => {
     expect(isolated.headers.get("cloudflare-cdn-cache-control")).toBe(
       "no-store",
     );
-    expect(isolated.headers.get("permissions-policy")).toBe(
-      "document-domain=()",
-    );
+    expect(isolated.headers.get("permissions-policy")).toBeNull();
+    expect(isolated.headers.get("origin-agent-cluster")).toBe("?1");
     const stored = await env.DB.prepare(
       "SELECT expires_at, password_hash FROM sites WHERE address = ?",
     ).bind(address).first<

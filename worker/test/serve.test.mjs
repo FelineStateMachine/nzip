@@ -131,6 +131,8 @@ test("canonical directory URL serves its index without redirecting", async () =>
   assert.equal(response.headers.get("location"), null);
   assert.equal(response.headers.get("cache-control"), "public, max-age=60");
   assert.equal(response.headers.get("cache-tag"), "nzip-site-2f9b");
+  assert.equal(response.headers.get("permissions-policy"), null);
+  assert.equal(response.headers.get("origin-agent-cluster"), "?1");
 });
 
 test("missing index path still returns not found", async () => {
