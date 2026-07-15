@@ -7,3 +7,4 @@ worker/wrangler.local.jsonc
 tmp/
 __pycache__/
 .nzip-*/
+.playwright-cli/
