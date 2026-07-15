@@ -224,7 +224,7 @@ describe("Worker runtime", () => {
     });
 
     expect(response.status).toBe(200);
-    expect((await response.json<{ version: string }>()).version).toBe("0.7.1");
+    expect((await response.json<{ version: string }>()).version).toBe("0.8.0");
   });
 
   it("preserves TTL and password settings when repushing without policy flags", async () => {
