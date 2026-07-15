@@ -23,6 +23,7 @@ function envFor(files, siteOverrides = {}) {
 
   return {
     PUBLIC_BASE: "https://n.zip",
+    SITE_DOMAIN: "n.zip",
     DB: {
       prepare() {
         return {
@@ -47,72 +48,70 @@ function envFor(files, siteOverrides = {}) {
 const html = { h: HASH, s: 0, ct: "text/html; charset=utf-8" };
 const css = { h: HASH, s: 0, ct: "text/css; charset=utf-8" };
 
-test("single-file root index redirects to the bare site URL", async () => {
+function serveSite(request, env, url) {
+  return serve(request, env, url, "2f9b");
+}
+
+test("legacy address paths permanently redirect to the isolated site origin", async () => {
   const response = await serve(
     new Request("https://n.zip/2f9b/index.html?view=full"),
     envFor({ "index.html": html }),
     new URL("https://n.zip/2f9b/index.html?view=full"),
   );
 
-  assert.equal(response.status, 302);
+  assert.equal(response.status, 308);
   assert.equal(response.headers.get("cache-control"), "public, max-age=60");
   assert.equal(response.headers.get("cache-tag"), "nzip-site-2f9b");
   assert.equal(
     response.headers.get("location"),
-    "https://n.zip/2f9b?view=full",
+    "https://2f9b.n.zip/index.html?view=full",
   );
 });
 
-test("multi-file root index redirects to the site directory", async () => {
-  const url = new URL("https://n.zip/2f9b/index.html");
-  const response = await serve(
+test("root index redirects to the isolated site root", async () => {
+  const url = new URL("https://2f9b.n.zip/index.html");
+  const response = await serveSite(
     new Request(url),
     envFor({ "index.html": html, "style.css": css }),
     url,
   );
 
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://n.zip/2f9b/");
+  assert.equal(response.headers.get("location"), "https://2f9b.n.zip/");
 });
 
 test("nested index redirects to its directory", async () => {
-  const url = new URL("https://n.zip/2f9b/docs/index.html");
-  const response = await serve(
+  const url = new URL("https://2f9b.n.zip/docs/index.html");
+  const response = await serveSite(
     new Request(url),
     envFor({ "index.html": html, "docs/index.html": html }),
     url,
   );
 
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://n.zip/2f9b/docs/");
+  assert.equal(response.headers.get("location"), "https://2f9b.n.zip/docs/");
 });
 
 test("canonical redirects use the HTTPS public base instead of the request origin", async (t) => {
   const cases = [
     {
-      name: "bare multi-file address",
-      requestUrl: "http://internal/2f9b?mode=pwa",
-      files: { "index.html": html, "style.css": css },
-      location: "https://n.zip/2f9b/?mode=pwa",
-    },
-    {
       name: "explicit index",
-      requestUrl: "http://internal/2f9b/index.html?mode=pwa",
+      requestUrl: "http://internal/index.html?mode=pwa",
       files: { "index.html": html, "style.css": css },
-      location: "https://n.zip/2f9b/?mode=pwa",
+      location: "https://2f9b.n.zip/?mode=pwa",
     },
     {
       name: "directory without trailing slash",
-      requestUrl: "http://internal/2f9b/docs?mode=pwa",
+      requestUrl: "http://internal/docs?mode=pwa",
       files: { "index.html": html, "docs/index.html": html },
-      location: "https://n.zip/2f9b/docs/?mode=pwa",
+      location: "https://2f9b.n.zip/docs/?mode=pwa",
     },
   ];
 
   for (const { name, requestUrl, files, location } of cases) {
     await t.test(name, async () => {
       const url = new URL(requestUrl);
-      const response = await serve(new Request(url), envFor(files), url);
+      const response = await serveSite(new Request(url), envFor(files), url);
 
       assert.equal(response.status, 302);
       assert.equal(response.headers.get("location"), location);
@@ -121,8 +120,8 @@ test("canonical redirects use the HTTPS public base instead of the request origi
 });
 
 test("canonical directory URL serves its index without redirecting", async () => {
-  const url = new URL("https://n.zip/2f9b/");
-  const response = await serve(
+  const url = new URL("https://2f9b.n.zip/");
+  const response = await serveSite(
     new Request(url),
     envFor({ "index.html": html, "style.css": css }),
     url,
@@ -135,14 +134,34 @@ test("canonical directory URL serves its index without redirecting", async () =>
 });
 
 test("missing index path still returns not found", async () => {
-  const url = new URL("https://n.zip/2f9b/index.html");
-  const response = await serve(
+  const url = new URL("https://2f9b.n.zip/index.html");
+  const response = await serveSite(
     new Request(url),
     envFor({ "download.txt": { ...css, ct: "text/plain; charset=utf-8" } }),
     url,
   );
 
   assert.equal(response.status, 404);
+});
+
+test("old address-prefixed asset bases remain usable on the site origin", async () => {
+  const assetUrl = new URL("https://2f9b.n.zip/2f9b/style.css");
+  const asset = await serveSite(
+    new Request(assetUrl),
+    envFor({ "index.html": html, "style.css": css }),
+    assetUrl,
+  );
+  const indexUrl = new URL("https://2f9b.n.zip/2f9b/index.html");
+  const index = await serveSite(
+    new Request(indexUrl),
+    envFor({ "index.html": html, "style.css": css }),
+    indexUrl,
+  );
+
+  assert.equal(asset.status, 200);
+  assert.equal(asset.headers.get("content-type"), "text/css; charset=utf-8");
+  assert.equal(index.status, 302);
+  assert.equal(index.headers.get("location"), "https://2f9b.n.zip/2f9b/");
 });
 
 test("favicon serves the wordmark PNG with a cacheable response", async () => {
@@ -168,8 +187,8 @@ test("favicon serves the wordmark PNG with a cacheable response", async () => {
 });
 
 test("unlock requires a declared request size", async () => {
-  const url = new URL("https://n.zip/2f9b/__unlock");
-  const response = await serve(
+  const url = new URL("https://2f9b.n.zip/__unlock");
+  const response = await serveSite(
     new Request(url, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -183,8 +202,8 @@ test("unlock requires a declared request size", async () => {
 });
 
 test("unlock page disables mobile zoom", async () => {
-  const url = new URL("https://n.zip/2f9b");
-  const response = await serve(
+  const url = new URL("https://2f9b.n.zip/");
+  const response = await serveSite(
     new Request(url),
     envFor({ "index.html": html }, { password_hash: "hash" }),
     url,
@@ -196,8 +215,8 @@ test("unlock page disables mobile zoom", async () => {
 
 test("unlock returns to the requested nested page", async () => {
   const passwordHash = await hashPassword("test");
-  const pageUrl = new URL("https://n.zip/2f9b/docs/guide.html?view=full");
-  const locked = await serve(
+  const pageUrl = new URL("https://2f9b.n.zip/docs/guide.html?view=full");
+  const locked = await serveSite(
     new Request(pageUrl),
     envFor({ "docs/guide.html": html }, { password_hash: passwordHash }),
     pageUrl,
@@ -205,11 +224,11 @@ test("unlock returns to the requested nested page", async () => {
   const returnTo = /name="return_to" value="([^"]+)"/.exec(
     await locked.text(),
   )?.[1].replaceAll("&amp;", "&");
-  assert.equal(returnTo, "/2f9b/docs/guide.html?view=full");
+  assert.equal(returnTo, "/docs/guide.html?view=full");
 
   const body = new URLSearchParams({ password: "test", return_to: returnTo });
-  const unlockUrl = new URL("https://n.zip/2f9b/__unlock");
-  const unlocked = await serve(
+  const unlockUrl = new URL("https://2f9b.n.zip/__unlock");
+  const unlocked = await serveSite(
     new Request(unlockUrl, {
       method: "POST",
       headers: {
@@ -227,9 +246,14 @@ test("unlock returns to the requested nested page", async () => {
   assert.equal(unlocked.status, 303);
   assert.equal(
     unlocked.headers.get("location"),
-    "/2f9b/docs/guide.html?view=full",
+    "/docs/guide.html?view=full",
   );
-  assert.match(unlocked.headers.get("set-cookie") ?? "", /^nzip_a2f9b=/);
+  assert.match(
+    unlocked.headers.get("set-cookie") ?? "",
+    /^__Host-nzip-unlock=/,
+  );
+  assert.match(unlocked.headers.get("set-cookie") ?? "", /; Path=\//);
+  assert.doesNotMatch(unlocked.headers.get("set-cookie") ?? "", /Domain=/i);
 });
 
 test("unlock rejects a return target outside the locked site", async () => {
@@ -238,8 +262,8 @@ test("unlock rejects a return target outside the locked site", async () => {
     password: "test",
     return_to: "https://example.com/phishing",
   });
-  const unlockUrl = new URL("https://n.zip/2f9b/__unlock");
-  const response = await serve(
+  const unlockUrl = new URL("https://2f9b.n.zip/__unlock");
+  const response = await serveSite(
     new Request(unlockUrl, {
       method: "POST",
       headers: {
@@ -255,12 +279,12 @@ test("unlock rejects a return target outside the locked site", async () => {
   );
 
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "/2f9b");
+  assert.equal(response.headers.get("location"), "/");
 });
 
 test("unlock rejects an oversized declared body before password verification", async () => {
-  const url = new URL("https://n.zip/2f9b/__unlock");
-  const response = await serve(
+  const url = new URL("https://2f9b.n.zip/__unlock");
+  const response = await serveSite(
     new Request(url, {
       method: "POST",
       headers: {
@@ -277,9 +301,9 @@ test("unlock rejects an oversized declared body before password verification", a
 });
 
 test("unlock rejects passwords above 256 characters before hashing", async () => {
-  const url = new URL("https://n.zip/2f9b/__unlock");
+  const url = new URL("https://2f9b.n.zip/__unlock");
   const body = new URLSearchParams({ password: "x".repeat(257) }).toString();
-  const response = await serve(
+  const response = await serveSite(
     new Request(url, {
       method: "POST",
       headers: {

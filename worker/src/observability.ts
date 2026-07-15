@@ -42,6 +42,7 @@ export function buildSecurityRequestEvent(
   req: Request,
   url: URL,
   response: Response,
+  siteAddress: string | null = null,
 ): SecurityRequestEvent | null {
   const path = url.pathname;
   const unlock = path.match(UNLOCK_PATH);
@@ -49,7 +50,16 @@ export function buildSecurityRequestEvent(
   const addressPath = path.match(ADDRESS_PATH);
 
   let pathClass: RequestClass;
-  if (path === "/api" || path.startsWith("/api/")) {
+  if (siteAddress !== null) {
+    if (path === "/__unlock") {
+      pathClass = "unlock";
+    } else if (path === "/") {
+      pathClass = "address";
+    } else {
+      if (response.status < 400) return null;
+      pathClass = "address_asset";
+    }
+  } else if (path === "/api" || path.startsWith("/api/")) {
     if (response.status < 400) return null;
     pathClass = "api";
   } else if (unlock) {
@@ -65,7 +75,7 @@ export function buildSecurityRequestEvent(
     pathClass = "invalid";
   }
 
-  const address = (unlock ?? exactAddress ?? addressPath)?.[1];
+  const address = siteAddress ?? (unlock ?? exactAddress ?? addressPath)?.[1];
   const loggedPath = path.slice(0, MAX_LOGGED_PATH_LENGTH);
   return {
     event: "security.request",
@@ -117,9 +127,13 @@ export async function recordEnumerationProbe(
   env: Env,
   url: URL,
   response: Response,
+  siteAddress: string | null = null,
 ): Promise<void> {
   const match = url.pathname.match(EXACT_ADDRESS_PATH);
-  if (!match) return;
+  const addressString = siteAddress !== null && url.pathname === "/"
+    ? siteAddress
+    : match?.[1];
+  if (!addressString) return;
 
   try {
     const ip = req.headers.get("cf-connecting-ip") ?? "local";
@@ -137,7 +151,7 @@ export async function recordEnumerationProbe(
 
     const now = Math.floor(Date.now() / 1000);
     const bucket = now - (now % 300);
-    const address = Number.parseInt(match[1], 16);
+    const address = Number.parseInt(addressString, 16);
     const cf = req.cf;
     await env.DB.prepare(
       `INSERT OR IGNORE INTO security_probes
@@ -177,8 +191,9 @@ export async function logSecurityRequest(
   env: Env,
   url: URL,
   response: Response,
+  siteAddress: string | null = null,
 ): Promise<void> {
-  const event = buildSecurityRequestEvent(req, url, response);
+  const event = buildSecurityRequestEvent(req, url, response, siteAddress);
   if (!event) return;
 
   try {

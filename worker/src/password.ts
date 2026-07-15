@@ -2,6 +2,7 @@
 
 const PBKDF2_ITERATIONS = 100_000;
 const COOKIE_TTL_S = 7 * 24 * 3600;
+const UNLOCK_COOKIE = "__Host-nzip-unlock";
 
 interface UnlockSecrets {
   NZIP_TOKEN: string;
@@ -81,10 +82,6 @@ async function hmacKey(env: UnlockSecrets): Promise<CryptoKey> {
   );
 }
 
-function cookieName(address: string): string {
-  return `nzip_a${address}`;
-}
-
 /** Set-Cookie value granting access to one site for COOKIE_TTL_S. */
 export async function makeUnlockCookie(
   env: UnlockSecrets,
@@ -99,10 +96,9 @@ export async function makeUnlockCookie(
       new TextEncoder().encode(`${address}.${authVersion}.${exp}`),
     ),
   );
-  // Path without trailing slash so the cookie also matches the bare /{address} URL.
-  return `${
-    cookieName(address)
-  }=${authVersion}.${exp}.${sig}; Max-Age=${COOKIE_TTL_S}; Path=/${address}; HttpOnly; Secure; SameSite=Lax`;
+  // __Host- prevents a sibling artifact hostname from planting a parent-domain
+  // cookie with this name. Each site hostname receives its own host-only value.
+  return `${UNLOCK_COOKIE}=${authVersion}.${exp}.${sig}; Max-Age=${COOKIE_TTL_S}; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
 export async function hasValidUnlockCookie(
@@ -112,37 +108,43 @@ export async function hasValidUnlockCookie(
   authVersion: number,
 ): Promise<boolean> {
   const cookies = req.headers.get("cookie") ?? "";
-  const match = cookies.match(
-    new RegExp(`(?:^|;\\s*)${cookieName(address)}=([^;]+)`),
-  );
-  if (!match) return false;
-  const parts = match[1].split(".");
-  let expStr: string;
-  let sig: string;
-  let payload: string;
-  if (parts.length === 2 && authVersion === 1) {
-    // Cookies issued before auth_version existed remain valid until the site's
-    // password policy first changes and increments the version.
-    [expStr, sig] = parts;
-    payload = `${address}.${expStr}`;
-  } else if (parts.length === 3 && parts[0] === String(authVersion)) {
-    [, expStr, sig] = parts;
-    payload = `${address}.${authVersion}.${expStr}`;
-  } else {
-    return false;
+  const acceptedNames = new Set([UNLOCK_COOKIE, `nzip_a${address}`]);
+  for (const entry of cookies.split(";")) {
+    const [name, ...valueParts] = entry.trim().split("=");
+    if (!acceptedNames.has(name)) continue;
+    const parts = valueParts.join("=").split(".");
+    let expStr: string;
+    let sig: string;
+    let payload: string;
+    if (parts.length === 2 && authVersion === 1) {
+      // Cookies issued before auth_version existed remain valid until the site's
+      // password policy first changes and increments the version.
+      [expStr, sig] = parts;
+      payload = `${address}.${expStr}`;
+    } else if (parts.length === 3 && parts[0] === String(authVersion)) {
+      [, expStr, sig] = parts;
+      payload = `${address}.${authVersion}.${expStr}`;
+    } else {
+      continue;
+    }
+    const exp = parseInt(expStr, 10);
+    if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) {
+      continue;
+    }
+    try {
+      if (
+        await crypto.subtle.verify(
+          "HMAC",
+          await hmacKey(env),
+          hexToBytes(sig) as BufferSource,
+          new TextEncoder().encode(payload),
+        )
+      ) {
+        return true;
+      }
+    } catch {
+      // Ignore malformed or cookie-shadowing candidates and try the next value.
+    }
   }
-  const exp = parseInt(expStr, 10);
-  if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) {
-    return false;
-  }
-  try {
-    return await crypto.subtle.verify(
-      "HMAC",
-      await hmacKey(env),
-      hexToBytes(sig) as BufferSource,
-      new TextEncoder().encode(payload),
-    );
-  } catch {
-    return false;
-  }
+  return false;
 }

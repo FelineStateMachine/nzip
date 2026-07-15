@@ -1,4 +1,9 @@
-import { createExecutionContext, env, SELF, waitOnExecutionContext } from "cloudflare:test";
+import {
+  createExecutionContext,
+  env,
+  SELF,
+  waitOnExecutionContext,
+} from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import worker from "../src/index.ts";
 import { hashPassword, verifyPassword } from "../src/password.ts";
@@ -9,9 +14,25 @@ describe("Worker runtime", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
-    expect(response.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    expect(response.headers.get("content-security-policy")).toBe(
+      "frame-ancestors 'none'",
+    );
     expect(response.headers.get("x-frame-options")).toBe("DENY");
     expect(await response.text()).toContain("nzip");
+  });
+
+  it("rejects unknown wildcard hosts without exposing the control plane", async () => {
+    const invalid = await SELF.fetch("https://attacker.demo.dev/api/status", {
+      headers: { authorization: "Bearer runtime-test-token" },
+    });
+    const validArtifactHost = await SELF.fetch(
+      "https://0123.demo.dev/api/status",
+      { headers: { authorization: "Bearer runtime-test-token" } },
+    );
+
+    expect(invalid.status).toBe(404);
+    expect(validArtifactHost.status).toBe(404);
+    expect(await invalid.json()).toEqual({ error: "not found" });
   });
 
   it("keeps the root shell claim-independent and hides pairing by default", async () => {
@@ -47,12 +68,15 @@ describe("Worker runtime", () => {
     expect(enrolled.status).toBe(404);
     expect(await enrolled.json()).toEqual({ error: "pairing unavailable" });
 
-    const crossOrigin = await SELF.fetch("https://share.demo.dev/_notify/pairing", {
-      headers: {
-        origin: "https://attacker.example",
-        "sec-fetch-site": "cross-site",
+    const crossOrigin = await SELF.fetch(
+      "https://share.demo.dev/_notify/pairing",
+      {
+        headers: {
+          origin: "https://attacker.example",
+          "sec-fetch-site": "cross-site",
+        },
       },
-    });
+    );
     expect(crossOrigin.status).toBe(403);
 
     await SELF.fetch("https://share.demo.dev/api/notify/pairing", {
@@ -203,7 +227,8 @@ describe("Worker runtime", () => {
   it("preserves TTL and password settings when repushing without policy flags", async () => {
     const address = 0xeffe;
     const expiresAt = Math.floor(Date.now() / 1000) + 90 * 86_400;
-    const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const emptyHash =
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
     const oldManifest = "a".repeat(64);
     await env.DB.batch([
       env.DB.prepare(
@@ -226,32 +251,58 @@ describe("Worker runtime", () => {
     ]);
     await env.CONTENT.put(`blob/${emptyHash}`, new Uint8Array());
 
-    const response = await SELF.fetch("https://share.demo.dev/api/push/commit", {
-      method: "POST",
-      headers: {
-        authorization: "Bearer runtime-test-token",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        manifest: {
-          v: 1,
-          files: {
-            "index.html": { h: emptyHash, s: 0, ct: "text/html; charset=utf-8" },
-          },
+    const response = await SELF.fetch(
+      "https://share.demo.dev/api/push/commit",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer runtime-test-token",
+          "content-type": "application/json",
         },
-        target: { address },
-      }),
-    });
+        body: JSON.stringify({
+          manifest: {
+            v: 1,
+            files: {
+              "index.html": {
+                h: emptyHash,
+                s: 0,
+                ct: "text/html; charset=utf-8",
+              },
+            },
+          },
+          target: { address },
+        }),
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       address: "effe",
+      url: "https://effe.demo.dev/",
       expiresAt,
       protected: true,
     });
+
+    const legacy = await SELF.fetch("https://share.demo.dev/effe/index.html", {
+      redirect: "manual",
+    });
+    expect(legacy.status).toBe(308);
+    expect(legacy.headers.get("location")).toBe(
+      "https://effe.demo.dev/index.html",
+    );
+
+    const isolated = await SELF.fetch("https://effe.demo.dev/", {
+      headers: { cookie: "nzip_aeffe=not-a-valid-unlock" },
+    });
+    expect(isolated.status).toBe(401);
+    expect(isolated.headers.get("permissions-policy")).toBe(
+      "document-domain=()",
+    );
     const stored = await env.DB.prepare(
       "SELECT expires_at, password_hash FROM sites WHERE address = ?",
-    ).bind(address).first<{ expires_at: number | null; password_hash: string | null }>();
+    ).bind(address).first<
+      { expires_at: number | null; password_hash: string | null }
+    >();
     expect(stored).toEqual({
       expires_at: expiresAt,
       password_hash: "existing-password-hash",
@@ -295,40 +346,60 @@ describe("Worker runtime", () => {
       description: "Human review links; safe to share with collaborators",
     });
 
-    const listed = await SELF.fetch("https://share.demo.dev/api/vaults", { headers });
+    const listed = await SELF.fetch("https://share.demo.dev/api/vaults", {
+      headers,
+    });
     expect(await listed.json()).toContainEqual(expect.objectContaining({
       name: "reviews",
       description: "Human review links; safe to share with collaborators",
     }));
 
-    const cleared = await SELF.fetch("https://share.demo.dev/api/vaults/reviews", {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ description: "" }),
-    });
+    const cleared = await SELF.fetch(
+      "https://share.demo.dev/api/vaults/reviews",
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ description: "" }),
+      },
+    );
     expect(cleared.status).toBe(200);
-    expect(await cleared.json()).toMatchObject({ name: "reviews", description: null });
-
-    const clearedWithNull = await SELF.fetch("https://share.demo.dev/api/vaults/reviews", {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ description: null }),
+    expect(await cleared.json()).toMatchObject({
+      name: "reviews",
+      description: null,
     });
+
+    const clearedWithNull = await SELF.fetch(
+      "https://share.demo.dev/api/vaults/reviews",
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ description: null }),
+      },
+    );
     expect(clearedWithNull.status).toBe(200);
-    expect(await clearedWithNull.json()).toMatchObject({ name: "reviews", description: null });
-
-    const multiline = await SELF.fetch("https://share.demo.dev/api/vaults/reviews", {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ description: "line1\nline2" }),
+    expect(await clearedWithNull.json()).toMatchObject({
+      name: "reviews",
+      description: null,
     });
+
+    const multiline = await SELF.fetch(
+      "https://share.demo.dev/api/vaults/reviews",
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ description: "line1\nline2" }),
+      },
+    );
     expect(multiline.status).toBe(400);
 
-    const badEncoding = await SELF.fetch("https://share.demo.dev/api/vaults/%zz", {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ description: "x" }),
-    });
+    const badEncoding = await SELF.fetch(
+      "https://share.demo.dev/api/vaults/%zz",
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ description: "x" }),
+      },
+    );
     expect(badEncoding.status).toBe(400);
   });
 

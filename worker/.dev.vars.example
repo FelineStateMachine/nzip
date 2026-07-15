@@ -1,3 +1,5 @@
 # Non-secret placeholder used by `wrangler types`; copy to `.dev.vars` for local development.
 NZIP_TOKEN=replace-with-a-local-development-token
 VAPID_PRIVATE_KEY=replace-with-a-url-safe-base64-private-key
+PUBLIC_BASE=http://localhost:8787
+SITE_DOMAIN=localhost

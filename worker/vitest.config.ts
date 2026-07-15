@@ -11,6 +11,8 @@ export default defineConfig({
       miniflare: {
         bindings: {
           NZIP_TOKEN: "runtime-test-token",
+          PUBLIC_BASE: "https://share.demo.dev",
+          SITE_DOMAIN: "demo.dev",
           TEST_BASE_MIGRATIONS: await readD1Migrations(
             "./test/base-migrations",
           ),

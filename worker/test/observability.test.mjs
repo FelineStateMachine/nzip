@@ -15,6 +15,16 @@ function eventFor(path, status, method = "GET") {
   );
 }
 
+function siteEventFor(path, status, method = "GET") {
+  const url = new URL(path, "https://0123.n.zip");
+  return buildSecurityRequestEvent(
+    new Request(url, { method }),
+    url,
+    new Response(null, { status }),
+    "0123",
+  );
+}
+
 test("four-hex address probes include derived vault and site locations", () => {
   assert.deepEqual(eventFor("/0123", 404), {
     event: "security.request",
@@ -52,6 +62,13 @@ test("missing assets and unlock attempts retain their request class", () => {
   assert.equal(eventFor("/0123/missing.js", 404)?.path_class, "address_asset");
   assert.equal(eventFor("/0123/__unlock", 429, "POST")?.path_class, "unlock");
   assert.equal(eventFor("/0123/__unlock", 429, "POST")?.result, "rate_limited");
+});
+
+test("site-origin probes retain the hostname address", () => {
+  assert.equal(siteEventFor("/", 404)?.path_class, "address");
+  assert.equal(siteEventFor("/__unlock", 429, "POST")?.path_class, "unlock");
+  assert.equal(siteEventFor("/missing.js", 404)?.address, "0123");
+  assert.equal(siteEventFor("/app.js", 200), null);
 });
 
 class FakeRateLimit {

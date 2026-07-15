@@ -13,7 +13,10 @@
       "invocation_logs": false
     }
   },
-  "routes": [{ "pattern": "share.demo.dev", "custom_domain": true }],
+  "routes": [
+    { "pattern": "share.demo.dev", "custom_domain": true },
+    { "pattern": "*.demo.dev/*", "zone_name": "demo.dev" }
+  ],
   "r2_buckets": [
     {
       "binding": "CONTENT",
@@ -70,6 +73,7 @@
   },
   "vars": {
     "PUBLIC_BASE": "https://share.demo.dev",
+    "SITE_DOMAIN": "demo.dev",
     "ALERT_EMAIL_TO": "operator@example.com",
     "ALERT_EMAIL_FROM": "alerts@share.demo.dev",
     "NOTIFY_ENABLED": "false",

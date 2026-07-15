@@ -7,6 +7,7 @@ import { buildWebPushRequest, validatePushEndpoint } from "../src/web_push.ts";
 
 const env = {
   PUBLIC_BASE: "https://share.demo.dev",
+  SITE_DOMAIN: "demo.dev",
   WEB_PUSH_ORIGINS:
     "https://fcm.googleapis.com,https://web.push.apple.com,https://updates.push.services.mozilla.com",
 };
