@@ -14,7 +14,7 @@ expiration, password protection, owner notifications, and enumeration alerts._
 $ nzip site push ./demo work:demo --ttl 30d
   bundling ./demo … 3 files, 197 B
   manifest 4a91d75d — 3 new blobs (197 B), 0 deduped
-✓ pushed work:demo -> https://share.demo.dev/12d8  (expires in 30d, push #1)
+✓ pushed work:demo -> https://12d8.demo.dev/  (expires in 30d, push #1)
 ```
 
 ## Install
@@ -43,12 +43,16 @@ Every share lives at four hex characters. The first digit selects one of 16 regi
 the remaining three select one of 4,096 randomly allocated sites within that vault.
 
 ```text
-https://share.demo.dev/2a3f
-                          |+- site 0xa3f
-                          +-- vault 0x2 ("work")
+https://2a3f.demo.dev/
+        |+- site 0xa3f
+        +-- vault 0x2 ("work")
 ```
 
 Aliases such as `work:demo` are resolved by the authenticated API; public URLs do not expose them.
+The control-plane shorthand `https://share.demo.dev/2a3f` permanently redirects to the canonical
+site hostname. Each site hostname is a separate browser origin, so its storage, service workers,
+and host-only cookies are isolated from other nzip sites. The default passkey relying-party ID is
+also the site hostname; see the parent-domain caveat in [SECURITY.md](SECURITY.md).
 
 | form        | example     | meaning                    |
 | ----------- | ----------- | -------------------------- |
@@ -64,8 +68,8 @@ Aliases such as `work:demo` are resolved by the authenticated API; public URLs d
   duration or `forever`.
 - **Revertible.** The last ten pushes per site are retained and available through
   `nzip site revert`.
-- **Password-protectable.** Password policy is committed atomically with content. Signed per-site
-  cookies are invalidated when the policy changes.
+- **Password-protectable.** Password policy is committed atomically with content. Signed, host-only
+  per-site cookies are invalidated when the policy changes.
 - **Recoverable.** `nzip site cp` reconstructs and verifies the currently hosted bundle.
 - **Owner notifications.** Explicitly approved phones receive Web Push notifications with bounded,
   same-origin click targets.
@@ -135,8 +139,9 @@ trust boundaries.
 
 ## Self-hosting
 
-nzip is self-hosted; there is no bundled public service. The Worker uses a custom domain, R2, D1,
-rate-limit bindings, and optional Email Routing and Web Push configuration.
+nzip is self-hosted; there is no bundled public service. The Worker uses an exact control hostname,
+a wildcard site route, R2, D1, rate-limit bindings, and optional Email Routing and Web Push
+configuration.
 
 Follow [`worker/setup.md`](worker/setup.md) for provisioning, migrations, secrets, notification
 setup, deployment, and operational checks. The system is designed for small personal deployments on

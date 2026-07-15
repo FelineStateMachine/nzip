@@ -94,8 +94,10 @@ permissions when a sandbox blocks a check instead of reporting nzip as broken.
    nzip site push .nzip-<purpose>/ <vault>:<alias> --ttl 1d
    ```
 
-5. Return the canonical URL and expiry. If the user requested a review boundary or asked for only
-   the link, return only the link and wait for approval before implementing the reviewed work.
+5. Return the canonical URL and expiry. Current servers return a per-site hostname such as
+   `https://2a3f.n.zip/`; a control-origin `/<address>` URL is only a compatibility redirect. If the
+   user requested a review boundary or asked for only the link, return only the link and wait for
+   approval before implementing the reviewed work.
 
 ## Use guide
 
@@ -137,13 +139,12 @@ records, but other clients keep the old name; renaming to a name outside `allowV
 Treat `revert`, vault renames, password changes, TTL changes, and deletion as state changes; do not
 perform them while merely diagnosing. Never infer deletion confirmation.
 
-Notifications are external, lock-screen-visible side effects. Do not send,
-test, approve, or revoke unless the user explicitly requests that action. Never
-put credentials, private URLs, sensitive personal data, or other secrets in a
-notification title or body. Prefer `--open <target>` for click-throughs because
-the CLI resolves an existing nzip site, applies vault guardrails, and sends only
-a same-origin path. A pairing code is short-lived but is not sufficient on its
-own; approval still uses the configured owner bearer token.
+Notifications are external, lock-screen-visible side effects. Do not send, test, approve, or revoke
+unless the user explicitly requests that action. Never put credentials, private URLs, sensitive
+personal data, or other secrets in a notification title or body. Prefer `--open <target>` for
+click-throughs because the CLI resolves an existing nzip site, applies vault guardrails, and sends
+only a control-origin path that redirects to the isolated site hostname. A pairing code is
+short-lived but is not sufficient on its own; approval still uses the configured owner bearer token.
 
 ## Pair notifications
 

@@ -28,7 +28,7 @@ deno run -A jsr:@nzip/cli --help
 nzip auth --server https://share.demo.dev   # authenticate (prompts for the token)
 nzip vault add work                            # register a named vault
 nzip site push ./site work:demo --ttl 30d --password secret
-                                                # → https://share.demo.dev/12d8
+                                                # → https://12d8.demo.dev/
 ```
 
 Config is saved to `~/.config/nzip/config.json` (mode 0600), so later commands just work. On a

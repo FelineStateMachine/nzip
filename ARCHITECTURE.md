@@ -1,15 +1,16 @@
 # nzip architecture
 
-nzip is a Deno CLI backed by a Cloudflare Worker, R2 object storage, and D1 relational state. The
-CLI and Worker share one runtime-neutral package so both sides canonicalize and hash manifests
-identically.
+nzip is a Deno CLI backed by a Cloudflare Worker, R2 object storage, and D1
+relational state. The CLI and Worker share one runtime-neutral package so both
+sides canonicalize and hash manifests identically.
 
 ## Components
 
 ```mermaid
 flowchart TB
-    CLI["Deno CLI"] -- "bearer API" --> W["Worker"]
-    V(["visitor"]) -- "GET /2a3f" --> C{"Workers Cache"}
+    CLI["Deno CLI"] -- "bearer API at control host" --> W["Worker"]
+    SHORT(["GET control/2a3f"]) -- "308" --> SITE["https://2a3f.site-domain/"]
+    V(["visitor"]) -- "GET site hostname" --> C{"Workers Cache"}
     C -- "hit" --> RESP["public response"]
     C -- "miss" --> W
     W -- "tagged response" --> RESP
@@ -17,35 +18,60 @@ flowchart TB
     W --> D1[("D1 state")]
 ```
 
-- `shared/` defines manifests, hashing, target parsing, limits, media types, and API contracts.
-- `cli/` bundles local files, uploads missing blobs, commits sites, and manages owner operations.
-- `worker/` serves public sites and implements authenticated management, security telemetry,
-  notifications, cleanup, and delivery retries.
+- `shared/` defines manifests, hashing, target parsing, limits, media types, and
+  API contracts.
+- `cli/` bundles local files, uploads missing blobs, commits sites, and manages
+  owner operations.
+- `worker/` serves public sites and implements authenticated management,
+  security telemetry, notifications, cleanup, and delivery retries.
 
 ## Push protocol
 
-A push is a stateless three-step exchange; the manifest is the state carried between steps:
+A push is a stateless three-step exchange; the manifest is the state carried
+between steps:
 
 1. `POST /api/push/prepare` sends the manifest and returns missing blob hashes.
-2. `PUT /api/blob/{sha256}` uploads only missing blobs, with bounded concurrency. The Worker
-   re-hashes each body and rejects mismatches or oversized blobs.
-3. `POST /api/push/commit` verifies every blob, resolves or allocates the address, applies TTL and
-   password policy, repoints the site, and appends retained history atomically.
+2. `PUT /api/blob/{sha256}` uploads only missing blobs, with bounded
+   concurrency. The Worker re-hashes each body and rejects mismatches or
+   oversized blobs.
+3. `POST /api/push/commit` verifies every blob, resolves or allocates the
+   address, applies TTL and password policy, repoints the site, and appends
+   retained history atomically.
 
-Content-addressed blobs deduplicate across every site. The last ten pushes per site remain
-addressable for revert operations.
+Content-addressed blobs deduplicate across every site. The last ten pushes per
+site remain addressable for revert operations.
 
 ## Serving and caching
 
-Serving normally requires one D1 read for site state and two R2 reads for the manifest and file.
-Public responses use `ETag` revalidation and a 60-second Workers Cache entry. Cache hits skip Worker
-execution and storage reads, although they still count as Worker requests.
+The configured control origin owns authenticated APIs, notification enrollment,
+and legacy short paths. A legacy `/<address>` request receives a permanent `308`
+to `https://<address>.<site-domain>/`; the control origin never serves artifact
+bytes. The wildcard route accepts only exact four-character lowercase
+hexadecimal hostnames. Management and notification routes are not dispatched on
+artifact hosts.
 
-Public responses carry a site cache tag. Pushes, reverts, deletion, TTL changes, and password-policy
-changes purge that tag. Protected responses and errors are never publicly cached.
+Each artifact hostname is a distinct browser origin. Origin-scoped storage,
+credentials, passkey defaults, and service-worker control therefore stay within
+one site. Artifact responses also disable `document.domain` relaxation. Until
+`SITE_DOMAIN` is registered in the Public Suffix List, WebAuthn still permits a
+site to deliberately choose that parent domain as its RP ID; applications that
+require isolation must explicitly use their exact hostname.
 
-Single-file sites serve at the bare address. Multi-file sites redirect to the trailing-slash form so
-relative asset paths resolve correctly.
+Serving normally requires one D1 read for site state and two R2 reads for the
+manifest and file. Public responses use `ETag` revalidation and a 60-second
+Workers Cache entry. Cache hits skip Worker execution and storage reads,
+although they still count as Worker requests.
+
+Public responses carry a site cache tag. Pushes, reverts, deletion, TTL changes,
+and password-policy changes purge that tag. Protected responses and errors are
+never publicly cached.
+
+Site roots always use `/`. Directory paths redirect to the trailing-slash form
+so relative asset paths resolve correctly, and explicit `index.html` paths
+redirect to their containing directory. For migration compatibility, an
+unresolved `/<address>/...` asset path on that address's hostname falls back to
+the corresponding root-relative asset. A real file at the prefixed path always
+wins.
 
 ## Storage model
 
@@ -70,14 +96,15 @@ Security and notification state:
 | `notification_events`         | bounded notification payloads and click targets      |
 | `notification_deliveries`     | leased delivery attempts, retries, and outcomes      |
 
-An R2 object is deleted only when no live site or retained history entry references it and it is
-older than 24 hours. This prevents concurrent garbage collection from deleting an in-flight push.
+An R2 object is deleted only when no live site or retained history entry
+references it and it is older than 24 hours. This prevents concurrent garbage
+collection from deleting an in-flight push.
 
 ## Notification flow
 
-Notification setup separates enrollment, owner approval, and subscription attachment. Delivery is
-also asynchronous: the owner request persists an event and per-device attempts before background
-work contacts a Web Push provider.
+Notification setup separates enrollment, owner approval, and subscription
+attachment. Delivery is also asynchronous: the owner request persists an event
+and per-device attempts before background work contacts a Web Push provider.
 
 ```mermaid
 flowchart TB
@@ -104,19 +131,21 @@ flowchart TB
     TARGET --> SITE["root or pinned site"]
 ```
 
-Pairing codes cannot approve themselves; the approval path always requires the owner bearer token.
-Subscription endpoints must match the configured provider-origin allowlist. Notification click
-targets are resolved at tap time and open only the deployment root or the unchanged site manifest
-recorded with the event.
+Pairing codes cannot approve themselves; the approval path always requires the
+owner bearer token. Subscription endpoints must match the configured
+provider-origin allowlist. Notification click targets are resolved at tap time
+and open only the deployment root or the unchanged site manifest recorded with
+the event.
 
 ## Background work
 
-The five-minute schedule evaluates enumeration windows and drains notification deliveries. The daily
-schedule expires sites, garbage-collects content, prunes telemetry and notification state, and sends
-the security activity digest.
+The five-minute schedule evaluates enumeration windows and drains notification
+deliveries. The daily schedule expires sites, garbage-collects content, prunes
+telemetry and notification state, and sends the security activity digest.
 
-Durable outboxes separate request acceptance from email and Web Push delivery. Delivery workers use
-leases, bounded retry schedules, and terminal outcomes so overlapping cron executions remain safe.
+Durable outboxes separate request acceptance from email and Web Push delivery.
+Delivery workers use leases, bounded retry schedules, and terminal outcomes so
+overlapping cron executions remain safe.
 
 ## Observability
 
@@ -134,13 +163,15 @@ flowchart TB
     PROBES --> METRICS["D1 row metrics"]
 ```
 
-Workers Logs provide sampled request-level context. D1 probe windows remain bounded but unsampled
-for automatic incident decisions. D1 row metrics are the direct storage-budget signal.
+Workers Logs provide sampled request-level context. D1 probe windows remain
+bounded but unsampled for automatic incident decisions. D1 row metrics are the
+direct storage-budget signal.
 
 ## Free-tier design target
 
-nzip is designed so a small personal deployment can stay inside Cloudflare's included usage. This is
-a design target, not a guarantee: quotas are account-wide and Cloudflare may change them.
+nzip is designed so a small personal deployment can stay inside Cloudflare's
+included usage. This is a design target, not a guarantee: quotas are
+account-wide and Cloudflare may change them.
 
 | resource      | bounding strategy                                       | usage reference                                                                                            |
 | ------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -151,6 +182,6 @@ a design target, not a guarantee: quotas are account-wide and Cloudflare may cha
 | R2            | content deduplication, history cap, and daily GC        | [R2 pricing](https://developers.cloudflare.com/r2/pricing/)                                                |
 | Alert email   | one verified Email Routing destination                  | [Email Service pricing](https://developers.cloudflare.com/email-service/platform/pricing/)                 |
 
-Probe persistence happens after the public response and catches its own errors. Exhausting the
-telemetry budget reduces detection coverage until quotas reset but does not stop ordinary site
-serving.
+Probe persistence happens after the public response and catches its own errors.
+Exhausting the telemetry budget reduces detection coverage until quotas reset
+but does not stop ordinary site serving.

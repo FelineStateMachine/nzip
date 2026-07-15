@@ -74,7 +74,7 @@ export interface CommitRequest {
 export interface CommitResponse {
   /** Four-character lowercase hexadecimal address, such as `"2a3f"`. */
   address: string;
-  /** Absolute public URL of the committed site. */
+  /** Absolute public URL on the site's isolated hostname. */
   url: string;
   /** Resolved site alias, or `null` for an unaliased address. */
   alias: string | null;

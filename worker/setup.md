@@ -3,10 +3,10 @@
 Everything here happens once. Day-to-day content pushes never touch wrangler.
 
 The default architecture targets the Workers Free plan. It requires no paid
-Email Sending subscription: alerts use Email Routing to one verified destination.
-Free-tier limits are account-wide, so review the
-[budget notes](../ARCHITECTURE.md#free-tier-design-target) before exposing a busy or
-multi-tenant deployment.
+Email Sending subscription: alerts use Email Routing to one verified
+destination. Free-tier limits are account-wide, so review the
+[budget notes](../ARCHITECTURE.md#free-tier-design-target) before exposing a
+busy or multi-tenant deployment.
 
 ```sh
 cd worker
@@ -17,8 +17,10 @@ npx wrangler login
 # 2. private Wrangler config
 cp wrangler.jsonc wrangler.local.jsonc
 # Edit wrangler.local.jsonc now:
-# - routes[0].pattern: your hostname, such as share.demo.dev
-# - vars.PUBLIC_BASE: https://<that hostname>
+# - routes[0].pattern: your control hostname, such as share.demo.dev
+# - routes[1]: wildcard route for *.demo.dev/* with zone_name demo.dev
+# - vars.PUBLIC_BASE: https://<control hostname>
+# - vars.SITE_DOMAIN: the parent used by <address>.<site domain>, such as demo.dev
 # - d1_databases[0].database_id: filled in after D1 creation
 
 # 3. storage
@@ -38,9 +40,96 @@ npx wrangler email routing enable example.com
 npx wrangler email routing addresses create operator@example.com
 # Edit send_email and ALERT_EMAIL_* in wrangler.local.jsonc as shown below.
 
-# 7. first deploy
+# 7. wildcard DNS (Cloudflare DNS dashboard)
+#    Create a proxied `*` CNAME pointing to the control hostname.
+
+# 8. first deploy
 npx wrangler deploy --config wrangler.local.jsonc
 ```
+
+## Hostname model
+
+nzip uses two public surfaces:
+
+- `PUBLIC_BASE`, such as `https://share.demo.dev`, is the exact control origin
+  for owner APIs, notification enrollment, and legacy `/<address>` links.
+- `SITE_DOMAIN`, such as `demo.dev`, produces isolated artifact origins such as
+  `https://2a3f.demo.dev/`.
+
+The control path permanently redirects to the artifact hostname; it never serves
+artifact bytes. This separation gives every hosted site its own browser storage,
+credentials, service workers, and default passkey relying-party ID.
+
+New site builds should use `/` as their deployment base; the address is no
+longer part of the asset path and no reservation/rebuild/repush cycle is needed.
+The Worker includes a compatibility fallback for existing artifacts built with
+`/<address>/`: when a prefixed file does not actually exist, it serves the
+corresponding root-relative file on the same isolated hostname.
+
+For a Free-plan deployment, use a dedicated Cloudflare zone and keep artifact
+hosts one label below the zone apex. Universal SSL covers the apex and
+first-level wildcard. The required wildcard Worker route catches every
+otherwise-unmatched subdomain in that zone, so do not point it at a zone whose
+other subdomains must be served elsewhere unless you also add more-specific
+routes.
+
+The relevant config shape is:
+
+```jsonc
+"routes": [
+  { "pattern": "share.demo.dev", "custom_domain": true },
+  { "pattern": "*.demo.dev/*", "zone_name": "demo.dev" }
+],
+"vars": {
+  "PUBLIC_BASE": "https://share.demo.dev",
+  "SITE_DOMAIN": "demo.dev"
+}
+```
+
+Custom Domains do not accept wildcard hostnames. Create a proxied wildcard DNS
+record separately, then use a wildcard Worker route. In Cloudflare DNS, add `*`
+as a proxied CNAME to the control hostname (or another proxied target in the
+zone). Wait for Universal SSL to report an active certificate covering
+`*.demo.dev` before treating the deployment as ready.
+
+### Free-plan security rule
+
+The Worker validates hostnames before dispatching any API or artifact request.
+As defense in depth, a single Free-plan WAF custom rule can reject malformed
+wildcard hosts before they consume a Worker request. For `n.zip`, create a
+custom rule named `nzip: reject invalid site hosts`, choose `Block`, and use
+this expression:
+
+```text
+ends_with(lower(http.host), ".n.zip") and (
+  len(http.host) ne 10 or
+  not (substring(lower(http.host), 0, 1) in {"0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "a" "b" "c" "d" "e" "f"}) or
+  not (substring(lower(http.host), 1, 2) in {"0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "a" "b" "c" "d" "e" "f"}) or
+  not (substring(lower(http.host), 2, 3) in {"0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "a" "b" "c" "d" "e" "f"}) or
+  not (substring(lower(http.host), 3, 4) in {"0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "a" "b" "c" "d" "e" "f"})
+)
+```
+
+This avoids the paid `matches` regular-expression operator. Adapt both the
+suffix and expected hostname length for other zones. Keep control-plane security
+rules explicitly scoped to `http.host eq "n.zip"`; rules intended for all public
+traffic should include both the apex and valid site hostnames. The Worker's own
+rate-limit bindings remain authoritative for address enumeration and
+`POST /__unlock`, so the optional edge rule does not consume the Free plan's
+single rate-limit rule.
+
+Enable `Always Use HTTPS` for the entire zone. Once every wildcard hostname has
+a valid certificate, enable HSTS with a real duration; begin without `preload`,
+verify the deployment, and only then consider a one-year duration plus preload.
+`includeSubDomains` now intentionally covers all isolated site origins.
+
+For passkey applications, use the exact artifact hostname as the RP ID—normally
+`location.hostname`. Subdomains can deliberately select their registrable
+parent as a WebAuthn RP ID, so per-site origins alone do not make the parent
+domain safe for control-plane passkeys. Before hosting mutually untrusted
+passkey applications, register `SITE_DOMAIN` in the Public Suffix List and wait
+for the change to reach the browsers in scope. Until then, do not use passkeys
+with the parent `SITE_DOMAIN` RP ID.
 
 ## Free security alert email
 
@@ -67,8 +156,8 @@ Click the verification link Cloudflare sends, then configure:
 Apply `migrations/0002_security_alerts.sql`,
 `migrations/0003_security_notification_outbox.sql`,
 `migrations/0004_vault_descriptions.sql`, and
-`migrations/0005_notifications.sql` before deploying an upgraded Worker.
-After deployment, send a delivery test through the owner-authenticated endpoint:
+`migrations/0005_notifications.sql` before deploying an upgraded Worker. After
+deployment, send a delivery test through the owner-authenticated endpoint:
 
 ```sh
 curl -X POST -H "Authorization: Bearer $NZIP_TOKEN" \
@@ -84,13 +173,13 @@ resolve the incident. Probe rows are deduplicated by scanner/address, capped at
 30 per scanner per minute in each Cloudflare location; 429 confirmations have a
 separate one-per-minute persistence cap. Alert payloads are written to a D1
 outbox before delivery and retried by later cron runs with a stable notification
-ID. Telemetry contains no raw IP and is pruned after seven days. A daily activity
-digest is sent only when probes occurred in the preceding 24 hours.
+ID. Telemetry contains no raw IP and is pruned after seven days. A daily
+activity digest is sent only when probes occurred in the preceding 24 hours.
 
 ### Operational checks after deployment
 
-- **Workers Metrics:** request volume and errors; cache hits reduce execution and
-  storage reads but still count as Worker requests.
+- **Workers Metrics:** request volume and errors; cache hits reduce execution
+  and storage reads but still count as Worker requests.
 - **Workers Observability:** filter `event = "security.request"`; Free retains
   Workers Logs for three days.
 - **D1 Metrics → Row Metrics:** rows written is the main enumeration-telemetry
@@ -98,9 +187,9 @@ digest is sent only when probes occurred in the preceding 24 hours.
 - **Email Routing:** the destination must remain verified. A successful test
   endpoint response means Cloudflare accepted the message for delivery.
 
-`routes[0].pattern` and `vars.PUBLIC_BASE` are required user-provided values.
-`PUBLIC_BASE` is the origin printed in share URLs and the server URL passed to
-`nzip auth`.
+Both routes, `vars.PUBLIC_BASE`, and `vars.SITE_DOMAIN` are required
+user-provided values. `PUBLIC_BASE` is the server URL passed to `nzip auth`;
+commit responses print the isolated site URL derived from `SITE_DOMAIN`.
 
 When upgrading an existing deployment created before `auth_version` was added,
 apply its migration before deploying the new Worker:
@@ -156,8 +245,8 @@ deployment configuration is valid and a real device is ready for the pairing
 flow.
 
 To pair a phone, first open a 10-minute pairing window from an authenticated
-terminal. Then open the deployment root in its browser, tap the temporary
-`pair` footer action, and approve the displayed code:
+terminal. Then open the deployment root in its browser, tap the temporary `pair`
+footer action, and approve the displayed code:
 
 ```sh
 nzip notify pair
@@ -180,14 +269,20 @@ or other sensitive data in them.
 > auto-create it, or `PUT /accounts/{id}/workers/subdomain` with
 > `{"subdomain":"<name>"}`.
 
-## Required custom domain
+## Required domain and wildcard route
 
-1. Add your zone to your Cloudflare account (registrar -> Cloudflare
+1. Add a dedicated zone to your Cloudflare account (registrar -> Cloudflare
    nameservers).
-2. In `wrangler.local.jsonc`, set `routes[0].pattern`, `vars.PUBLIC_BASE`, and
-   your D1 `database_id`.
-3. `npx wrangler deploy --config wrangler.local.jsonc` - the custom-domain route
-   provisions DNS + cert automatically.
+2. In DNS, create a proxied wildcard record for `*`; do not leave the wildcard
+   DNS-only.
+3. In `wrangler.local.jsonc`, set the exact control Custom Domain, wildcard
+   Worker route, `PUBLIC_BASE`, `SITE_DOMAIN`, and your D1 `database_id`.
+4. Run `npx wrangler deploy --dry-run --config wrangler.local.jsonc`, then
+   deploy. The exact Custom Domain provisions its own DNS and certificate; the
+   wildcard route uses the wildcard DNS record from step 2.
+5. Verify that `/<address>` returns `308` to `https://<address>.<site-domain>/`,
+   an unknown wildcard hostname returns `404`, and `/api/status` is unavailable
+   on artifact hostnames.
 
 ## CLI
 
@@ -203,4 +298,5 @@ nzip vault add work              # slot 0x1
 nzip site push ./docs personal:plan --ttl forever
 ```
 
-Local development and test commands live in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+Local development and test commands live in
+[`CONTRIBUTING.md`](../CONTRIBUTING.md).

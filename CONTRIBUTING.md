@@ -59,6 +59,11 @@ In another terminal, point the CLI at the local Worker:
 nzip auth --server http://localhost:8787 --token dev-token-local-only
 ```
 
+The example environment sets `SITE_DOMAIN=localhost`, so a committed address is returned as
+`http://2a3f.localhost:8787/`. Modern browsers and `curl` resolve `*.localhost` to loopback; the
+control shorthand `http://localhost:8787/2a3f` exercises the same permanent redirect used in
+production.
+
 To exercise scheduled handlers, run `npx wrangler dev --test-scheduled`, then request a cron:
 
 ```sh
