@@ -7,8 +7,8 @@ enrollment, and observable abuse controls.
 
 Sites execute at `https://<address>.<site-domain>/`, giving every address a
 distinct browser origin. Origin-scoped localStorage, IndexedDB, OPFS,
-CacheStorage, service workers, cookies, and passkey defaults are isolated
-between sites. The control-plane shorthand
+CacheStorage, service workers, and passkey defaults are isolated between sites.
+nzip's unlock cookies are host-only. The control-plane shorthand
 `https://<control-origin>/<address>` is redirect-only and never serves artifact
 bytes.
 
@@ -18,14 +18,15 @@ cross-origin network requests where a target permits them, and can deceive its
 visitors. Artifact responses disable `document.domain` relaxation so sibling
 site hostnames cannot opt back into a shared origin.
 
-WebAuthn has an additional domain rule: a subdomain may deliberately choose its
-registrable parent as its RP ID. On `2a3f.n.zip`, the safe per-site default is
-`2a3f.n.zip`, and passkey applications should explicitly set
-`rp.id = location.hostname`. Until `n.zip` is accepted into the Public Suffix
-List, an arbitrary site can still request the parent RP ID `n.zip`; it cannot
-request a sibling RP ID such as `ffff.n.zip`. Do not use passkeys on the control
-origin or claim hostile-tenant passkey isolation until that Public Suffix List
-boundary ships in target browsers.
+Cookies and WebAuthn have additional domain rules. Until `n.zip` is accepted
+into the [Public Suffix List](https://publicsuffix.org/), an arbitrary site can
+set a `Domain=n.zip` cookie, and it can request the parent RP ID `n.zip`. It
+cannot request a sibling RP ID such as `ffff.n.zip`. Applications should use
+`__Host-` or otherwise host-only cookies and explicitly set
+`rp.id = location.hostname`; on `2a3f.n.zip`, the RP ID is `2a3f.n.zip`. Do not
+use passkeys or application-defined cookies on the control origin, or claim
+hostile-tenant credential isolation, until that Public Suffix List boundary
+ships in target browsers.
 
 ## Reporting a vulnerability
 

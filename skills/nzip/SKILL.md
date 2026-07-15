@@ -132,10 +132,12 @@ nzip
 ```
 
 Use password protection when the content or user requires it; `nzip site push` accepts the same
-`--password <pw> | --no-password` flags to set it at publish time. Vault descriptions appear in
-`vault ls` and `status`; use them to pick the right destination, and pass `--no-description` to
-clear one. A vault rename updates the invoking client's default vault, allow-list, and local push
-records, but other clients keep the old name; renaming to a name outside `allowVaults` is refused.
+`--password <pw> | --no-password` flags to set it at publish time. On an existing target, omit
+`--ttl` and password flags to preserve both policies; pass a flag only when the user intends to
+change that setting. Vault descriptions appear in `vault ls` and `status`; use them to pick the
+right destination, and pass `--no-description` to clear one. A vault rename updates the invoking
+client's default vault, allow-list, and local push records, but other clients keep the old name;
+renaming to a name outside `allowVaults` is refused.
 Treat `revert`, vault renames, password changes, TTL changes, and deletion as state changes; do not
 perform them while merely diagnosing. Never infer deletion confirmation.
 

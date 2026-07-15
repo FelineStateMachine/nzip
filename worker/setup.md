@@ -58,7 +58,8 @@ nzip uses two public surfaces:
 
 The control path permanently redirects to the artifact hostname; it never serves
 artifact bytes. This separation gives every hosted site its own browser storage,
-credentials, service workers, and default passkey relying-party ID.
+service workers, host-only nzip unlock cookie, and default passkey relying-party
+ID.
 
 New site builds should use `/` as their deployment base; the address is no
 longer part of the asset path and no reservation/rebuild/repush cycle is needed.
@@ -125,11 +126,13 @@ verify the deployment, and only then consider a one-year duration plus preload.
 
 For passkey applications, use the exact artifact hostname as the RP ID—normally
 `location.hostname`. Subdomains can deliberately select their registrable
-parent as a WebAuthn RP ID, so per-site origins alone do not make the parent
-domain safe for control-plane passkeys. Before hosting mutually untrusted
-passkey applications, register `SITE_DOMAIN` in the Public Suffix List and wait
-for the change to reach the browsers in scope. Until then, do not use passkeys
-with the parent `SITE_DOMAIN` RP ID.
+parent as a WebAuthn RP ID or set cookies for that parent domain, so per-site
+origins alone do not isolate those two credential mechanisms. Applications
+should use `__Host-` or otherwise host-only cookies and exact-host RP IDs. Before
+hosting mutually untrusted applications, register `SITE_DOMAIN` in the
+[Public Suffix List](https://publicsuffix.org/submit/) and wait for the change to
+reach the browsers in scope. Until then, do not use the parent `SITE_DOMAIN` for
+application cookies or passkeys.
 
 ## Free security alert email
 
@@ -289,9 +292,7 @@ or other sensitive data in them.
 
 ```sh
 # from the repo root
-deno install -g -f -n nzip \
-  --allow-net --allow-read --allow-write --allow-env \
-  cli/main.ts
+deno install -g -A -f --config deno.json -n nzip cli/main.ts
 
 nzip auth --server https://share.demo.dev --token <token-from-step-5>
 nzip vault add personal          # slot 0x0

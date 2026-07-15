@@ -10,10 +10,10 @@ sides canonicalize and hash manifests identically.
 flowchart TB
     CLI["Deno CLI"] -- "bearer API at control host" --> W["Worker"]
     SHORT(["GET control/2a3f"]) -- "308" --> SITE["https://2a3f.site-domain/"]
-    V(["visitor"]) -- "GET site hostname" --> C{"Workers Cache"}
-    C -- "hit" --> RESP["public response"]
-    C -- "miss" --> W
-    W -- "tagged response" --> RESP
+    V(["visitor"]) -- "GET site hostname" --> C{"browser cache"}
+    C -- "fresh" --> RESP["public response"]
+    C -- "miss or revalidate" --> W
+    W --> RESP
     W --> R2[("R2 blobs")]
     W --> D1[("D1 state")]
 ```
@@ -50,12 +50,13 @@ bytes. The wildcard route accepts only exact four-character lowercase
 hexadecimal hostnames. Management and notification routes are not dispatched on
 artifact hosts.
 
-Each artifact hostname is a distinct browser origin. Origin-scoped storage,
-credentials, passkey defaults, and service-worker control therefore stay within
-one site. Artifact responses also disable `document.domain` relaxation. Until
-`SITE_DOMAIN` is registered in the Public Suffix List, WebAuthn still permits a
-site to deliberately choose that parent domain as its RP ID; applications that
-require isolation must explicitly use their exact hostname.
+Each artifact hostname is a distinct browser origin. Origin-scoped storage and
+service-worker control therefore stay within one site, and nzip's `__Host-`
+unlock cookie is host-only. Artifact responses also disable `document.domain`
+relaxation. Until `SITE_DOMAIN` is registered in the Public Suffix List, an
+artifact can still set a parent-domain cookie or deliberately choose that parent
+as its WebAuthn RP ID. Applications that require isolation must use host-only
+cookies and their exact hostname as the RP ID.
 
 Serving normally requires one D1 read for site state and two R2 reads for the
 manifest and file. Public responses use `ETag` revalidation and a 60-second
@@ -176,8 +177,7 @@ account-wide and Cloudflare may change them.
 
 | resource      | bounding strategy                                       | usage reference                                                                                            |
 | ------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Workers       | short request path; cache before execution              | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)                               |
-| Workers Cache | public content only; short TTL; mutation purge          | [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)                             |
+| Workers       | short path; every browser miss executes the Worker      | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)                               |
 | Workers Logs  | invocation logs off; deterministic identity sample      | [Workers Logs pricing](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#pricing) |
 | D1            | deduplicated windows, write caps, and seven-day pruning | [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/)                                       |
 | R2            | content deduplication, history cap, and daily GC        | [R2 pricing](https://developers.cloudflare.com/r2/pricing/)                                                |

@@ -110,9 +110,9 @@ nzip
    └─ revoke <device-id> [--yes]         revoke a notification device
 ```
 
-Password and TTL values are committed with content. Omitting `--password` preserves the current
-policy on an existing site; `--no-password` clears it. Directory pushes skip dotfiles and
-`node_modules` and honor a `.nzipignore` file containing one glob per line.
+Password and TTL values are committed with content. On an existing site, omitted settings preserve
+their current values; `--no-password` clears protection explicitly. Directory pushes skip dotfiles
+and `node_modules` and honor a `.nzipignore` file containing one glob per line.
 
 See [`cli/README.md`](cli/README.md) for detailed CLI behavior and examples.
 
