@@ -61,6 +61,12 @@ mirrors the hostname shape at the edge. Worker validation remains the source of
 truth, so correctness does not depend on the WAF rule or paid regular-expression
 support.
 
+The Worker disables Cloudflare shared-edge caching on every response with
+`Cloudflare-CDN-Cache-Control: no-store`. This is a required origin-isolation
+control: the exact custom domain and wildcard Worker route can otherwise reuse
+one cached public response for the same path on another hostname. Public sites
+still advertise short browser caching and support `ETag` revalidation.
+
 ## Notification pairing
 
 Pairing is closed by default. An authenticated owner opens a fixed 10-minute

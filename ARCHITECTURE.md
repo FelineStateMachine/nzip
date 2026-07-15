@@ -59,12 +59,13 @@ require isolation must explicitly use their exact hostname.
 
 Serving normally requires one D1 read for site state and two R2 reads for the
 manifest and file. Public responses use `ETag` revalidation and a 60-second
-Workers Cache entry. Cache hits skip Worker execution and storage reads,
-although they still count as Worker requests.
+browser cache entry. Every Worker response also sends
+`Cloudflare-CDN-Cache-Control: no-store`: the exact custom domain and wildcard
+route currently share an unsafe hostname-agnostic edge cache key, so an edge
+entry must never be replayed on a sibling site origin.
 
-Public responses carry a site cache tag. Pushes, reverts, deletion, TTL changes,
-and password-policy changes purge that tag. Protected responses and errors are
-never publicly cached.
+Public responses retain site cache tags and purge hooks for a future host-safe
+edge-cache design. Protected responses and errors are never cached.
 
 Site roots always use `/`. Directory paths redirect to the trailing-slash form
 so relative asset paths resolve correctly, and explicit `index.html` paths

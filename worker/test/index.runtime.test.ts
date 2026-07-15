@@ -14,6 +14,9 @@ describe("Worker runtime", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
+    expect(response.headers.get("cloudflare-cdn-cache-control")).toBe(
+      "no-store",
+    );
     expect(response.headers.get("content-security-policy")).toBe(
       "frame-ancestors 'none'",
     );
@@ -295,6 +298,9 @@ describe("Worker runtime", () => {
       headers: { cookie: "nzip_aeffe=not-a-valid-unlock" },
     });
     expect(isolated.status).toBe(401);
+    expect(isolated.headers.get("cloudflare-cdn-cache-control")).toBe(
+      "no-store",
+    );
     expect(isolated.headers.get("permissions-policy")).toBe(
       "document-domain=()",
     );

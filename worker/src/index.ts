@@ -33,6 +33,11 @@ export default {
     const controlOrigin = isControlOrigin(env, url);
     const siteAddress = controlOrigin ? null : siteAddressFromUrl(env, url);
     const finish = (response: Response): Response => {
+      // Cloudflare currently keys Worker response cache entries for the exact
+      // custom domain and its wildcard route without preserving the request
+      // hostname. Never let a public artifact response be replayed on a sibling
+      // site's origin. Browser caching remains controlled by Cache-Control.
+      response.headers.set("cloudflare-cdn-cache-control", "no-store");
       ctx.waitUntil(logSecurityRequest(req, env, url, response, siteAddress));
       ctx.waitUntil(
         recordEnumerationProbe(req, env, url, response, siteAddress),

@@ -178,8 +178,9 @@ activity digest is sent only when probes occurred in the preceding 24 hours.
 
 ### Operational checks after deployment
 
-- **Workers Metrics:** request volume and errors; cache hits reduce execution
-  and storage reads but still count as Worker requests.
+- **Workers Metrics:** request volume and errors. Shared-edge caching is
+  intentionally disabled because exact and wildcard hostnames must never share
+  an artifact response; budget for each public request to execute the Worker.
 - **Workers Observability:** filter `event = "security.request"`; Free retains
   Workers Logs for three days.
 - **D1 Metrics → Row Metrics:** rows written is the main enumeration-telemetry
