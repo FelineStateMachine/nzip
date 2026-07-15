@@ -45,10 +45,19 @@ function publicSiteHeaders(address: string): HeadersInit {
   };
 }
 
-function publicSiteRedirect(url: string, address: string): Response {
+function publicSiteRedirect(
+  env: Env,
+  pathname: string,
+  search: string,
+  address: string,
+): Response {
+  const url = new URL(env.PUBLIC_BASE);
+  url.pathname = pathname;
+  url.search = search;
+  url.hash = "";
   return new Response(null, {
     status: 302,
-    headers: { location: url, ...publicSiteHeaders(address) },
+    headers: { location: url.toString(), ...publicSiteHeaders(address) },
   });
 }
 
@@ -244,7 +253,9 @@ export async function serve(
   if (m[2] === undefined) {
     if (filePaths.length !== 1) {
       return publicSiteRedirect(
-        new URL(`/${addressStr}/`, url).toString(),
+        env,
+        `/${addressStr}/`,
+        url.search,
         addressStr,
       );
     }
@@ -263,15 +274,13 @@ export async function serve(
     const canonicalPath = isRootIndex && filePaths.length === 1
       ? `/${addressStr}`
       : path.slice(0, -"index.html".length);
-    const canonicalUrl = new URL(canonicalPath, url);
-    canonicalUrl.search = url.search;
-    return publicSiteRedirect(canonicalUrl.toString(), addressStr);
+    return publicSiteRedirect(env, canonicalPath, url.search, addressStr);
   }
 
   const entry = manifest.files[assetPath];
   if (!entry && manifest.files[`${assetPath}/index.html`]) {
     // Directory hit without trailing slash: redirect so relative URLs resolve.
-    return publicSiteRedirect(new URL(`${path}/`, url).toString(), addressStr);
+    return publicSiteRedirect(env, `${path}/`, url.search, addressStr);
   }
   if (!entry) return htmlResponse(NOT_FOUND_PAGE, 404);
 

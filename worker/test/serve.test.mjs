@@ -22,6 +22,7 @@ function envFor(files, siteOverrides = {}) {
   };
 
   return {
+    PUBLIC_BASE: "https://n.zip",
     DB: {
       prepare() {
         return {
@@ -84,6 +85,39 @@ test("nested index redirects to its directory", async () => {
 
   assert.equal(response.status, 302);
   assert.equal(response.headers.get("location"), "https://n.zip/2f9b/docs/");
+});
+
+test("canonical redirects use the HTTPS public base instead of the request origin", async (t) => {
+  const cases = [
+    {
+      name: "bare multi-file address",
+      requestUrl: "http://internal/2f9b?mode=pwa",
+      files: { "index.html": html, "style.css": css },
+      location: "https://n.zip/2f9b/?mode=pwa",
+    },
+    {
+      name: "explicit index",
+      requestUrl: "http://internal/2f9b/index.html?mode=pwa",
+      files: { "index.html": html, "style.css": css },
+      location: "https://n.zip/2f9b/?mode=pwa",
+    },
+    {
+      name: "directory without trailing slash",
+      requestUrl: "http://internal/2f9b/docs?mode=pwa",
+      files: { "index.html": html, "docs/index.html": html },
+      location: "https://n.zip/2f9b/docs/?mode=pwa",
+    },
+  ];
+
+  for (const { name, requestUrl, files, location } of cases) {
+    await t.test(name, async () => {
+      const url = new URL(requestUrl);
+      const response = await serve(new Request(url), envFor(files), url);
+
+      assert.equal(response.status, 302);
+      assert.equal(response.headers.get("location"), location);
+    });
+  }
 });
 
 test("canonical directory URL serves its index without redirecting", async () => {
