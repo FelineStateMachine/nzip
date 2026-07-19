@@ -12,3 +12,6 @@ export const MAX_UNIQUE_BLOBS = 900;
  * Both the CLI and Worker enforce this before retaining or buffering a body.
  */
 export const MAX_BLOB_BYTES = 50 * 1024 * 1024;
+
+/** Fallback lifetime in days for new sites whose vault does not define one. */
+export const GLOBAL_DEFAULT_TTL = 14;

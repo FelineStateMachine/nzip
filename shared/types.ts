@@ -44,6 +44,23 @@ export type Target =
     alias?: string | null;
   };
 
+/** Supported site lifetimes. A number is a lifetime in days. */
+export type Ttl = number | "forever";
+
+/** Why a commit received its resolved lifetime. */
+export type TtlSource = "explicit" | "existing-site" | "vault" | "global";
+
+/** Lifecycle intent used to select a default vault. */
+export type VaultLifecycle = "temporary" | "permanent";
+
+/** Server-owned default vault names for each lifecycle intent. */
+export interface DefaultVaults {
+  /** Vault selected for ordinary, finite-lifetime sharing. */
+  temporary: string | null;
+  /** Vault selected for durable application origins. */
+  permanent: string | null;
+}
+
 /** Body of `POST /api/push/prepare`: the manifest the client wants to push. */
 export interface PrepareRequest {
   /** Complete manifest whose referenced blob availability should be checked. */
@@ -65,9 +82,14 @@ export interface CommitRequest {
   /** Address or vault destination that should receive the new version. */
   target: Target;
   /** Lifetime in days, `"forever"` for no expiry, or omitted to preserve an existing value (14 days for a new site). */
-  ttl?: number | "forever";
+  ttl?: Ttl;
   /** Password to set, `null` to clear it, or omitted to preserve an existing value. */
   password?: string | null;
+  /** App-only response policy recorded when deploying to a reserved app origin. */
+  app?: {
+    /** Content-Security-Policy emitted by the lofi build, if present. */
+    contentSecurityPolicy?: string;
+  };
 }
 
 /** Reply from `POST /api/push/commit` identifying the published site revision. */
@@ -82,6 +104,10 @@ export interface CommitResponse {
   manifestHash: string;
   /** Unix expiry timestamp in seconds, or `null` for a permanent site. */
   expiresAt: number | null;
+  /** Resolved lifetime in days, `"forever"`, or zero when an existing site is already expired. */
+  ttl: Ttl;
+  /** Policy layer that supplied the resolved lifetime. */
+  ttlSource: TtlSource;
   /** Whether visitors must unlock the committed site with a password. */
   protected: boolean;
   /** Monotonically increasing push sequence number within this site. */
@@ -153,6 +179,12 @@ export interface VaultInfo {
   createdAt: number;
   /** Number of currently live sites assigned to this vault. */
   siteCount: number;
+  /** Vault-specific lifetime, or `null` to inherit the global fallback. */
+  defaultTtl: Ttl | null;
+  /** Lifetime new sites receive after applying the global fallback. */
+  effectiveDefaultTtl: Ttl;
+  /** Lifecycle intents for which this vault is the server default. */
+  defaultFor: VaultLifecycle[];
 }
 
 /** Reply to `GET /api/status`: server version and a snapshot of vaults and sites. */
@@ -161,6 +193,10 @@ export interface StatusResponse {
   ok: true;
   /** Semantic version reported by the running nzip Worker. */
   version: string;
+  /** Server-owned default vault names, selected by lifecycle intent. */
+  defaultVaults: DefaultVaults;
+  /** Fallback lifetime in days when a vault does not define one. */
+  globalDefaultTtl: number;
   /** All registered vaults and their current site counts. */
   vaults: VaultInfo[];
   /** Total number of currently registered sites across every vault. */
@@ -178,9 +214,31 @@ export interface RevertRequest {
 /** Body of a site PATCH. Omitted access-policy fields remain unchanged. */
 export interface PatchSiteRequest {
   /** New lifetime in days, or `"forever"`; omission preserves the current expiry. */
-  ttl?: number | "forever";
+  ttl?: Ttl;
   /** Password to set, `null` to clear it, or omitted to leave it unchanged. */
   password?: string | null;
+}
+
+/** Body of `POST /api/apps`: reserve a permanent browser origin before deployment. */
+export interface AppInitRequest {
+  /** Named app destination. App reservations require an alias. */
+  target: { vault: string; alias: string };
+}
+
+/** Stable app-origin reservation returned by the management API. */
+export interface AppReservationInfo {
+  /** Four-character lowercase hexadecimal address. */
+  address: string;
+  /** Vault that owns the reservation. */
+  vault: string;
+  /** Alias permanently associated with this reservation. */
+  alias: string;
+  /** Absolute app URL on its isolated hostname. */
+  url: string;
+  /** Unix timestamp when this origin was first reserved. */
+  createdAt: number;
+  /** Whether site content currently exists at the reserved origin. */
+  deployed: boolean;
 }
 
 /** Standard error envelope returned by the API on failure. */

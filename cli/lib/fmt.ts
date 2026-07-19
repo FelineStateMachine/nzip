@@ -78,7 +78,7 @@ export function hintFor(message: string): string | undefined {
     return "list sites with: nzip site ls --json (targets: 2a3f | vault:alias | alias)";
   }
   if (/bare alias.*defaultVault|no defaultVault/.test(message)) {
-    return "use vault:alias explicitly, or set a default with: nzip vault default <name>";
+    return "use vault:alias explicitly, or set one with: nzip vault default temporary <name>";
   }
   if (/blobs missing/.test(message)) {
     return "an earlier upload was interrupted — re-run the same nzip site push";

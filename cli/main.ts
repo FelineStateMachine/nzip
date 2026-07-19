@@ -2,7 +2,7 @@
 /**
  * `nzip` — push a directory of HTML from the terminal and get a four-character
  * URL back. This is the CLI entrypoint; it parses argv and dispatches to the
- * command handlers (`auth`, `status`, `vault`, `site`, and `notify`).
+ * command handlers (`auth`, `status`, `app`, `vault`, `site`, and `notify`).
  *
  * Install and run it as a command rather than importing it:
  *
@@ -19,6 +19,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { VERSION } from "@nzip/shared";
 import { cmdAuth } from "./commands/auth.ts";
+import { cmdApp } from "./commands/app.ts";
 import { cmdNotify } from "./commands/notify.ts";
 import { cmdSiteGroup } from "./commands/site.ts";
 import { cmdStatus } from "./commands/sites.ts";
@@ -36,11 +37,14 @@ commands:
   nzip
   ├─ auth [--server URL] [--token T]       authenticate against the server
   ├─ status                                show server and vault status
+  ├─ app
+  │  ├─ init <alias|vault:alias>           reserve a stable app URL
+  │  └─ deploy                             build and deploy the configured lofi app
   ├─ vault
-  │  ├─ add <name> [--slot N] [--description TEXT]
-  │  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+  │  ├─ add <name> [--slot N] [--default-ttl 14d|forever|inherit]
+  │  ├─ update <name> [--default-ttl 14d|forever|inherit]
   │  ├─ ls                                 list vaults
-  │  └─ default <name>                     set the default vault
+  │  └─ default <temporary|permanent> <name>
   ├─ site
   │  ├─ push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
   │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
@@ -58,7 +62,7 @@ commands:
      ├─ devices [--all]                    list current notification devices
      └─ revoke <device-id> [--yes]         revoke a notification device
 
-targets: 2a3f | work:demo | demo (alias in default vault)
+targets: 2a3f | work:demo | demo (alias in temporary default vault)
 
 agent mode: add --json to any command for one-line JSON on stdout;
 errors go to stderr as {"ok":false,"error":…,"hint":…} with a suggested next step.
@@ -88,6 +92,11 @@ export async function main(argv = Deno.args): Promise<void> {
       "password",
       "name",
       "description",
+      "default-ttl",
+      "default-for",
+      "framework",
+      "output",
+      "build-task",
       "title",
       "open",
       "tag",
@@ -102,6 +111,7 @@ export async function main(argv = Deno.args): Promise<void> {
       "json",
       "no-description",
       "all",
+      "no-default-for",
     ],
     alias: { h: "help", V: "version", y: "yes" },
   });
@@ -120,7 +130,7 @@ export async function main(argv = Deno.args): Promise<void> {
 
   if (command === "auth") return await cmdAuth(args.server, args.token);
 
-  if (!["site", "status", "notify", "vault"].includes(command)) {
+  if (!["app", "site", "status", "notify", "vault"].includes(command)) {
     fail(`unknown command: ${command}\n\n${HELP}`);
   }
 
@@ -139,6 +149,12 @@ export async function main(argv = Deno.args): Promise<void> {
         toSeq,
         list: args.list,
       });
+    case "app":
+      return await cmdApp(config, rest, {
+        framework: args.framework,
+        output: args.output,
+        buildTask: args["build-task"],
+      });
     case "status":
       return await cmdStatus(config);
     case "notify":
@@ -151,11 +167,14 @@ export async function main(argv = Deno.args): Promise<void> {
         all: args.all,
       });
     case "vault":
-      return await cmdVault(config, rest[0], rest[1], {
+      return await cmdVault(config, rest, {
         slot,
         newName: args.name,
         description: args.description,
         clearDescription: args["no-description"],
+        defaultTtl: args["default-ttl"],
+        defaultFor: args["default-for"],
+        clearDefaultFor: args["no-default-for"],
       });
     default:
       fail(`unknown command: ${command}\n\n${HELP}`);

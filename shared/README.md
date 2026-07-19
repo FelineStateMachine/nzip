@@ -10,6 +10,11 @@ over the API. Canonical JSON serialization lives in exactly one place
 This package uses only Web-standard APIs (`crypto.subtle`, `TextEncoder`/`TextDecoder`, `JSON`), so
 the same code runs under Deno, Cloudflare Workers, Node.js, Bun, and browsers.
 
+The wire contract also defines lifecycle-aware vault metadata (`defaultVaults`, per-vault
+`defaultTtl`/`effectiveDefaultTtl`/`defaultFor`), resolved push retention (`ttl` and `ttlSource`),
+and permanent app-origin reservations. These fields let agents inspect policy before mutating
+hosting state instead of inferring defaults from names.
+
 ## Install
 
 ```sh

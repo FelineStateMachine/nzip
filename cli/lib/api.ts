@@ -2,6 +2,7 @@
 
 import type {
   ApiError,
+  AppReservationInfo,
   CommitRequest,
   CommitResponse,
   Manifest,
@@ -17,7 +18,9 @@ import type {
   SourceResponse,
   StatusResponse,
   Target,
+  Ttl,
   VaultInfo,
+  VaultLifecycle,
 } from "@nzip/shared";
 import { assertRawAddressAllowed, assertVaultAllowed, type Config } from "./config.ts";
 
@@ -150,18 +153,52 @@ export class ApiClient {
     return this.request("GET", "/api/vaults");
   }
 
-  createVault(name: string, slot?: number, description?: string): Promise<VaultInfo> {
-    return this.request("POST", "/api/vaults", JSON.stringify({ name, slot, description }));
+  createVault(
+    name: string,
+    slot?: number,
+    description?: string,
+    defaultTtl?: Ttl | null,
+    defaultFor?: VaultLifecycle | null,
+  ): Promise<VaultInfo> {
+    return this.request(
+      "POST",
+      "/api/vaults",
+      JSON.stringify({ name, slot, description, defaultTtl, defaultFor }),
+    );
   }
 
   updateVault(
     currentName: string,
-    patch: { name?: string; description?: string },
+    patch: {
+      name?: string;
+      description?: string | null;
+      defaultTtl?: Ttl | null;
+      defaultFor?: VaultLifecycle | null;
+    },
   ): Promise<VaultInfo> {
     return this.request(
       "PATCH",
       `/api/vaults/${encodeURIComponent(currentName)}`,
       JSON.stringify(patch),
+    );
+  }
+
+  setDefaultVault(
+    lifecycle: VaultLifecycle,
+    name: string,
+  ): Promise<{ defaultVaults: Record<VaultLifecycle, string | null>; vault: VaultInfo }> {
+    return this.request(
+      "PUT",
+      `/api/default-vaults/${lifecycle}`,
+      JSON.stringify({ name }),
+    );
+  }
+
+  initApp(vault: string, alias: string): Promise<AppReservationInfo> {
+    return this.request(
+      "POST",
+      "/api/apps",
+      JSON.stringify({ target: { vault, alias } }),
     );
   }
 

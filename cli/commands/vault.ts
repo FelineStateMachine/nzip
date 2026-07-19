@@ -1,7 +1,8 @@
 import { ApiClient } from "../lib/api.ts";
+import type { Ttl, VaultLifecycle } from "@nzip/shared";
 import type { Config } from "../lib/config.ts";
 import { assertVaultAllowed, saveConfig } from "../lib/config.ts";
-import { bold, dim, emit, fail, green, table } from "../lib/fmt.ts";
+import { bold, dim, emit, fail, green, parseTtl, table } from "../lib/fmt.ts";
 import { renameVault } from "../lib/paths.ts";
 
 export interface VaultFlags {
@@ -9,6 +10,31 @@ export interface VaultFlags {
   newName?: string;
   description?: string;
   clearDescription?: boolean;
+  defaultTtl?: string;
+  defaultFor?: string;
+  clearDefaultFor?: boolean;
+}
+
+function defaultTtlFlag(raw: string | undefined): Ttl | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === "inherit") return null;
+  try {
+    return parseTtl(raw);
+  } catch (cause) {
+    return fail((cause as Error).message.replace("--ttl", "--default-ttl"));
+  }
+}
+
+function lifecycleFlag(flags: VaultFlags): VaultLifecycle | null | undefined {
+  if (flags.clearDefaultFor && flags.defaultFor !== undefined) {
+    fail("pass either --default-for or --no-default-for, not both");
+  }
+  if (flags.clearDefaultFor) return null;
+  if (flags.defaultFor === undefined) return undefined;
+  if (flags.defaultFor !== "temporary" && flags.defaultFor !== "permanent") {
+    fail('--default-for must be "temporary" or "permanent"');
+  }
+  return flags.defaultFor;
 }
 
 /**
@@ -31,42 +57,60 @@ function descriptionFlag(flags: VaultFlags): string | undefined {
 
 export async function cmdVault(
   config: Config,
-  sub: string | undefined,
-  name: string | undefined,
+  rest: string[],
   flags: VaultFlags,
 ): Promise<void> {
+  const [sub, name, third, ...extra] = rest;
+  if (extra.length > 0) fail(`too many arguments for nzip vault ${sub ?? ""}`);
   const api = new ApiClient(config);
   const { slot, newName } = flags;
 
   if (sub === "ls" || sub === undefined) {
-    const vaults = await api.listVaults();
+    if (name !== undefined) fail("usage: nzip vault ls");
+    const status = await api.status();
+    const vaults = status.vaults;
     emit(() => {
       if (vaults.length === 0) {
         console.log(dim("no vaults registered — run `nzip vault add <name>`"));
         return;
       }
       console.log(table(
-        ["SLOT", "VAULT", "SITES", "DESCRIPTION"],
+        ["SLOT", "VAULT", "SITES", "DEFAULT TTL", "DEFAULT FOR", "DESCRIPTION"],
         vaults.map((v) => [
           `0x${v.slot.toString(16)}`,
-          v.name === config.defaultVault ? bold(`${v.name} *`) : v.name,
+          v.defaultFor.length > 0 ? bold(v.name) : v.name,
           String(v.siteCount),
+          String(v.effectiveDefaultTtl),
+          v.defaultFor.join(","),
           v.description ?? "",
         ]),
       ));
-    }, { ok: true, defaultVault: config.defaultVault ?? null, vaults });
+    }, {
+      ok: true,
+      defaultVaults: status.defaultVaults,
+      globalDefaultTtl: status.globalDefaultTtl,
+      vaults,
+    });
     return;
   }
 
   if (sub === "add") {
-    if (!name) fail("usage: nzip vault add <name> [--slot N] [--description TEXT]");
+    if (!name || third !== undefined) {
+      fail("usage: nzip vault add <name> [--slot N] [--description TEXT]");
+    }
     const description = descriptionFlag(flags) || undefined;
     try {
       assertVaultAllowed(name, config);
     } catch (e) {
       return fail((e as Error).message);
     }
-    const v = await api.createVault(name, slot, description);
+    const v = await api.createVault(
+      name,
+      slot,
+      description,
+      defaultTtlFlag(flags.defaultTtl),
+      lifecycleFlag(flags),
+    );
     const madeDefault = !config.defaultVault;
     if (madeDefault) await saveConfig({ ...config, defaultVault: v.name });
     emit(() => {
@@ -84,10 +128,13 @@ export async function cmdVault(
 
   if (sub === "update") {
     if (
-      !name || (newName === undefined && flags.description === undefined && !flags.clearDescription)
+      !name || third !== undefined ||
+      (newName === undefined && flags.description === undefined && !flags.clearDescription) &&
+        flags.defaultTtl === undefined && flags.defaultFor === undefined &&
+        !flags.clearDefaultFor
     ) {
       fail(
-        "usage: nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description]",
+        "usage: nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description] [--default-ttl 14d|forever|inherit]",
       );
     }
     const description = descriptionFlag(flags);
@@ -97,7 +144,12 @@ export async function cmdVault(
     } catch (e) {
       return fail((e as Error).message);
     }
-    const v = await api.updateVault(name, { name: newName, description });
+    const v = await api.updateVault(name, {
+      name: newName,
+      description,
+      defaultTtl: defaultTtlFlag(flags.defaultTtl),
+      defaultFor: lifecycleFlag(flags),
+    });
     if (newName !== undefined && newName !== name) {
       await saveConfig({
         ...config,
@@ -119,18 +171,19 @@ export async function cmdVault(
   }
 
   if (sub === "default") {
-    if (!name) fail("usage: nzip vault default <name>");
+    if ((name !== "temporary" && name !== "permanent") || !third) {
+      fail("usage: nzip vault default <temporary|permanent> <name>");
+    }
     try {
-      assertVaultAllowed(name, config);
+      assertVaultAllowed(third, config);
     } catch (e) {
       return fail((e as Error).message);
     }
-    const vaults = await api.listVaults();
-    if (!vaults.some((v) => v.name === name)) fail(`unknown vault: ${name}`);
-    await saveConfig({ ...config, defaultVault: name });
+    const result = await api.setDefaultVault(name, third);
+    if (name === "temporary") await saveConfig({ ...config, defaultVault: third });
     emit(
-      () => console.log(`${green("✓")} default vault set to ${bold(name)}`),
-      { ok: true, defaultVault: name },
+      () => console.log(`${green("✓")} ${name} default vault set to ${bold(third)}`),
+      { ok: true, ...result },
     );
     return;
   }

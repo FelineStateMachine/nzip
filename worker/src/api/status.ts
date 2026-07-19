@@ -1,6 +1,6 @@
-import { VERSION } from "../../../shared/mod.ts";
+import { GLOBAL_DEFAULT_TTL, VERSION } from "../../../shared/mod.ts";
 import type { StatusResponse } from "../../../shared/mod.ts";
-import { listSites, listVaults } from "../db.ts";
+import { defaultVaults, listSites, listVaults } from "../db.ts";
 import { type Env, json } from "../env.ts";
 
 export async function handleStatus(env: Env): Promise<Response> {
@@ -10,10 +10,10 @@ export async function handleStatus(env: Env): Promise<Response> {
   return json<StatusResponse>({
     ok: true,
     version: VERSION,
+    defaultVaults: await defaultVaults(env),
+    globalDefaultTtl: GLOBAL_DEFAULT_TTL,
     vaults,
     siteCount: sites.length,
-    expiringSoon: sites.filter((site) =>
-      site.expires_at !== null && site.expires_at < soon
-    ).length,
+    expiringSoon: sites.filter((site) => site.expires_at !== null && site.expires_at < soon).length,
   });
 }

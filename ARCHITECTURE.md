@@ -36,10 +36,29 @@ between steps:
    oversized blobs.
 3. `POST /api/push/commit` verifies every blob, resolves or allocates the
    address, applies TTL and password policy, repoints the site, and appends
-   retained history atomically.
+   retained history atomically. TTL resolution is explicit request, existing
+   site, vault default, then the 14-day global fallback; the response identifies
+   the winning layer.
 
 Content-addressed blobs deduplicate across every site. The last ten pushes per
 site remain addressable for revert operations.
+
+## App-origin reservation
+
+`POST /api/apps` reserves a named address before content exists. The reservation
+is separate from the live `sites` row and participates in allocation forever.
+This gives lofi a stable origin before `credentialOrigins`, WebAuthn RP IDs,
+service-worker scope, OPFS, or IndexedDB state are configured. A reservation
+without content serves a small non-indexed placeholder. Deploying creates or
+updates the ordinary site row at the reserved address; deletion and expiry may
+remove that row but never the reservation tombstone.
+
+The CLI's tracked `nzip.app.json` stores only framework, target, address, origin,
+and build configuration. The owner bearer token remains solely in the mode-0600
+CLI config. `app deploy` runs lofi's Deno build at the origin root, validates the
+build identity and PWA artifacts, and sends the generated CSP with the commit so
+the Worker can mirror it as an HTTP response header. Sync-node configuration is
+application data and remains orthogonal to hosting.
 
 ## Serving and caching
 
@@ -79,11 +98,13 @@ wins.
 
 Core publishing state:
 
-| table    | purpose                                                              |
-| -------- | -------------------------------------------------------------------- |
-| `vaults` | named vault slots, descriptions, and site grouping                   |
-| `sites`  | address, vault, alias, current manifest, expiry, and password policy |
-| `pushes` | retained per-site manifest history                                   |
+| table              | purpose                                                               |
+| ------------------ | --------------------------------------------------------------------- |
+| `vaults`           | named slots, descriptions, and optional default TTL                    |
+| `vault_defaults`   | temporary/permanent lifecycle selection                               |
+| `app_reservations` | permanent address and alias tombstones for application origins        |
+| `sites`            | live address, manifest, expiry, password, and optional app CSP policy |
+| `pushes`           | retained per-site manifest history                                    |
 
 Security and notification state:
 

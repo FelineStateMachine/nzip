@@ -177,8 +177,9 @@ Click the verification link Cloudflare sends, then configure:
 
 Apply `migrations/0002_security_alerts.sql`,
 `migrations/0003_security_notification_outbox.sql`,
-`migrations/0004_vault_descriptions.sql`, and
-`migrations/0005_notifications.sql` before deploying an upgraded Worker. After
+`migrations/0004_vault_descriptions.sql`, `migrations/0005_notifications.sql`,
+`migrations/0006_notification_pairing_window.sql`, and
+`migrations/0007_vault_defaults_and_app_origins.sql` before deploying an upgraded Worker. After
 deployment, send a delivery test through the owner-authenticated endpoint:
 
 ```sh
@@ -225,6 +226,7 @@ npx wrangler d1 execute nzip --remote --file migrations/0003_security_notificati
 npx wrangler d1 execute nzip --remote --file migrations/0004_vault_descriptions.sql
 npx wrangler d1 execute nzip --remote --file migrations/0005_notifications.sql
 npx wrangler d1 execute nzip --remote --file migrations/0006_notification_pairing_window.sql
+npx wrangler d1 execute nzip --remote --file migrations/0007_vault_defaults_and_app_origins.sql
 ```
 
 ## Owner notifications
@@ -259,6 +261,9 @@ npx wrangler d1 execute nzip --remote \
 npx wrangler d1 execute nzip --remote \
   --config wrangler.local.jsonc \
   --file migrations/0006_notification_pairing_window.sql
+npx wrangler d1 execute nzip --remote \
+  --config wrangler.local.jsonc \
+  --file migrations/0007_vault_defaults_and_app_origins.sql
 npx wrangler deploy --dry-run --config wrangler.local.jsonc
 npx wrangler deploy --config wrangler.local.jsonc
 ```
