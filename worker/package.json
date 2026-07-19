@@ -15,12 +15,12 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.18.4",
-    "@cloudflare/workers-types": "^5.20260712.1",
+    "@cloudflare/workers-types": "^5.20260719.1",
     "@types/node": "^26.1.1",
     "@types/web-push": "^3.6.4",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",
-    "wrangler": "^4.110.0"
+    "wrangler": "^4.112.0"
   },
   "dependencies": {
     "web-push": "^3.6.7"

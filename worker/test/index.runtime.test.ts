@@ -224,7 +224,27 @@ describe("Worker runtime", () => {
     });
 
     expect(response.status).toBe(200);
-    expect((await response.json<{ version: string }>()).version).toBe("0.8.0");
+    expect(await response.json()).toMatchObject({
+      version: "0.9.0",
+      defaultVaults: { temporary: "personal", permanent: "public" },
+      globalDefaultTtl: 14,
+      vaults: expect.arrayContaining([
+        expect.objectContaining({
+          slot: 0,
+          name: "personal",
+          defaultTtl: 14,
+          effectiveDefaultTtl: 14,
+          defaultFor: ["temporary"],
+        }),
+        expect.objectContaining({
+          slot: 15,
+          name: "public",
+          defaultTtl: "forever",
+          effectiveDefaultTtl: "forever",
+          defaultFor: ["permanent"],
+        }),
+      ]),
+    });
   });
 
   it("preserves TTL and password settings when repushing without policy flags", async () => {
@@ -283,6 +303,7 @@ describe("Worker runtime", () => {
       address: "effe",
       url: "https://effe.demo.dev/",
       expiresAt,
+      ttlSource: "existing-site",
       protected: true,
     });
 
@@ -314,6 +335,139 @@ describe("Worker runtime", () => {
     });
   });
 
+  it("resolves new-site TTL from explicit, vault, and global policy layers", async () => {
+    const headers = {
+      authorization: "Bearer runtime-test-token",
+      "content-type": "application/json",
+    };
+    const emptyHash =
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    await env.CONTENT.put(`blob/${emptyHash}`, new Uint8Array());
+    await env.DB.prepare(
+      `INSERT INTO vaults
+       (slot, name, description, default_ttl, created_at)
+       VALUES (13, 'inherited', NULL, NULL, ?)`,
+    ).bind(Math.floor(Date.now() / 1000)).run();
+    const manifest = {
+      v: 1,
+      files: {
+        "index.html": { h: emptyHash, s: 0, ct: "text/html; charset=utf-8" },
+      },
+    };
+    const commit = async (target: unknown, ttl?: number) => {
+      const response = await SELF.fetch(
+        "https://share.demo.dev/api/push/commit",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            manifest,
+            target,
+            ...(ttl === undefined ? {} : { ttl }),
+          }),
+        },
+      );
+      expect(response.status).toBe(200);
+      return await response.json<Record<string, unknown>>();
+    };
+
+    expect(await commit({ vault: "personal", alias: "vault-policy" }))
+      .toMatchObject({
+        ttl: 14,
+        ttlSource: "vault",
+      });
+    expect(await commit({ vault: "inherited", alias: "global-policy" }))
+      .toMatchObject({
+        ttl: 14,
+        ttlSource: "global",
+      });
+    expect(await commit({ vault: "inherited", alias: "explicit-policy" }, 30))
+      .toMatchObject({
+        ttl: 30,
+        ttlSource: "explicit",
+      });
+  });
+
+  it("reserves app origins idempotently, mirrors lofi CSP, and keeps tombstones", async () => {
+    const headers = {
+      authorization: "Bearer runtime-test-token",
+      "content-type": "application/json",
+    };
+    const init = async () => {
+      const response = await SELF.fetch("https://share.demo.dev/api/apps", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          target: { vault: "public", alias: "runtime-app" },
+        }),
+      });
+      expect([200, 201]).toContain(response.status);
+      return await response.json<{
+        address: string;
+        url: string;
+        deployed: boolean;
+      }>();
+    };
+
+    const first = await init();
+    const second = await init();
+    expect(second.address).toBe(first.address);
+    expect(first.deployed).toBe(false);
+
+    const placeholder = await SELF.fetch(first.url);
+    expect(placeholder.status).toBe(200);
+    expect(await placeholder.text()).toContain("not deployed yet");
+
+    const emptyHash =
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    await env.CONTENT.put(`blob/${emptyHash}`, new Uint8Array());
+    const policy = "default-src 'self'; frame-ancestors 'none'";
+    const deployed = await SELF.fetch(
+      "https://share.demo.dev/api/push/commit",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          manifest: {
+            v: 1,
+            files: {
+              "index.html": {
+                h: emptyHash,
+                s: 0,
+                ct: "text/html; charset=utf-8",
+              },
+            },
+          },
+          target: { vault: "public", alias: "runtime-app" },
+          app: { contentSecurityPolicy: policy },
+        }),
+      },
+    );
+    expect(deployed.status).toBe(200);
+    expect(await deployed.json()).toMatchObject({
+      address: first.address,
+      ttl: "forever",
+      ttlSource: "vault",
+    });
+
+    const hosted = await SELF.fetch(first.url);
+    expect(hosted.status).toBe(200);
+    expect(hosted.headers.get("content-security-policy")).toBe(policy);
+
+    const removed = await SELF.fetch(
+      "https://share.demo.dev/api/sites/public%3Aruntime-app",
+      { method: "DELETE", headers },
+    );
+    expect(removed.status).toBe(200);
+    const afterDelete = await SELF.fetch(first.url);
+    expect(afterDelete.status).toBe(200);
+    expect(await afterDelete.text()).toContain("not deployed yet");
+    expect(await init()).toMatchObject({
+      address: first.address,
+      deployed: false,
+    });
+  });
+
   it("creates, lists, renames, and redescribes vaults", async () => {
     const headers = {
       authorization: "Bearer runtime-test-token",
@@ -331,6 +485,9 @@ describe("Worker runtime", () => {
     expect(await created.json()).toMatchObject({
       name: "agent-work",
       description: "Scratch space for agent-generated review artifacts",
+      defaultTtl: null,
+      effectiveDefaultTtl: 14,
+      defaultFor: [],
       siteCount: 0,
     });
 
@@ -342,6 +499,7 @@ describe("Worker runtime", () => {
         body: JSON.stringify({
           name: "reviews",
           description: "Human review links; safe to share with collaborators",
+          defaultTtl: "forever",
         }),
       },
     );
@@ -349,7 +507,17 @@ describe("Worker runtime", () => {
     expect(await updated.json()).toMatchObject({
       name: "reviews",
       description: "Human review links; safe to share with collaborators",
+      defaultTtl: "forever",
+      effectiveDefaultTtl: "forever",
     });
+
+    for (const lifecycle of ["temporary", "permanent"]) {
+      const selected = await SELF.fetch(
+        `https://share.demo.dev/api/default-vaults/${lifecycle}`,
+        { method: "PUT", headers, body: JSON.stringify({ name: "reviews" }) },
+      );
+      expect(selected.status).toBe(200);
+    }
 
     const listed = await SELF.fetch("https://share.demo.dev/api/vaults", {
       headers,
@@ -357,7 +525,16 @@ describe("Worker runtime", () => {
     expect(await listed.json()).toContainEqual(expect.objectContaining({
       name: "reviews",
       description: "Human review links; safe to share with collaborators",
+      defaultFor: expect.arrayContaining(["temporary", "permanent"]),
     }));
+
+    for (const [lifecycle, name] of [["temporary", "personal"], ["permanent", "public"]]) {
+      const restored = await SELF.fetch(
+        `https://share.demo.dev/api/default-vaults/${lifecycle}`,
+        { method: "PUT", headers, body: JSON.stringify({ name }) },
+      );
+      expect(restored.status).toBe(200);
+    }
 
     const cleared = await SELF.fetch(
       "https://share.demo.dev/api/vaults/reviews",

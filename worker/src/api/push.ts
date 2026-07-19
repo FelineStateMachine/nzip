@@ -19,6 +19,8 @@ import { purgeSiteCache } from "../cache.ts";
 import {
   allocateAddress,
   commitSite,
+  getAppReservationByAddress,
+  getAppReservationByAlias,
   getSiteByAddress,
   getVaultByName,
   getVaultBySlot,
@@ -26,7 +28,7 @@ import {
 } from "../db.ts";
 import { type Env, json, siteUrl } from "../env.ts";
 import { ApiError, clientInput, readJson } from "./errors.ts";
-import { HEX64, passwordHashFor, ttlToExpiry } from "./common.ts";
+import { HEX64, passwordHashFor, resolveCommitTtl } from "./common.ts";
 
 const HEAD_BATCH_SIZE = 6;
 
@@ -109,40 +111,62 @@ export async function handleCommit(
   let alias: string | null = null;
   let isNew: boolean;
   let existingSite: Awaited<ReturnType<typeof getSiteByAddress>> = null;
+  let reservation: Awaited<ReturnType<typeof getAppReservationByAddress>> = null;
+  let vault: Awaited<ReturnType<typeof getVaultBySlot>>;
   if ("address" in target) {
     existingSite = await getSiteByAddress(env, target.address);
     const slot = vaultSlotOf(target.address);
-    if (!(await getVaultBySlot(env, slot))) {
+    vault = await getVaultBySlot(env, slot);
+    if (!vault) {
       throw new ApiError(
         404,
         `vault slot 0x${slot.toString(16)} not registered`,
       );
     }
+    reservation = await getAppReservationByAddress(env, target.address);
     address = target.address;
-    alias = existingSite?.alias ?? null;
+    alias = existingSite?.alias ?? reservation?.alias ?? null;
     isNew = !existingSite;
   } else {
-    const vault = await getVaultByName(env, target.vault);
+    vault = await getVaultByName(env, target.vault);
     if (!vault) throw new ApiError(404, `unknown vault: ${target.vault}`);
     alias = target.alias ?? null;
     if (alias !== null && !isValidName(alias)) {
       throw new ApiError(400, `invalid alias: ${alias}`);
     }
-    existingSite = alias === null
-      ? null
-      : await resolveTarget(env, { vault: target.vault, alias });
+    existingSite = alias === null ? null : await resolveTarget(env, { vault: target.vault, alias });
     if (existingSite) {
       address = existingSite.address;
       isNew = false;
     } else {
-      address = await allocateAddress(env, vault.slot);
+      reservation = alias === null ? null : await getAppReservationByAlias(env, vault.slot, alias);
+      address = reservation?.address ?? await allocateAddress(env, vault.slot);
       isNew = true;
     }
+    reservation ??= await getAppReservationByAddress(env, address);
   }
 
-  const expiresAt = body.ttl === undefined && existingSite
-    ? existingSite.expires_at
-    : ttlToExpiry(body.ttl);
+  if (body.app !== undefined && reservation === null) {
+    throw new ApiError(409, "app deployments require an initialized app reservation");
+  }
+  if (reservation !== null && body.app === undefined) {
+    throw new ApiError(409, "reserved app origins must be deployed with nzip app deploy");
+  }
+  const contentSecurityPolicy = body.app === undefined
+    ? undefined
+    : body.app.contentSecurityPolicy ?? null;
+  if (
+    typeof contentSecurityPolicy === "string" &&
+    (contentSecurityPolicy.length > 8192 || /[\r\n\0]/.test(contentSecurityPolicy))
+  ) {
+    throw new ApiError(400, "content security policy must be one line and at most 8192 characters");
+  }
+
+  const resolvedTtl = resolveCommitTtl(
+    body.ttl,
+    existingSite?.expires_at,
+    vault.default_ttl,
+  );
   const protectedSite = passwordHash === undefined && existingSite
     ? existingSite.password_hash !== null
     : passwordHash !== null && passwordHash !== undefined;
@@ -155,8 +179,9 @@ export async function handleCommit(
     vaultSlot: vaultSlotOf(address),
     alias,
     manifestHash: hash,
-    expiresAt,
+    expiresAt: resolvedTtl.expiresAt,
     passwordHash,
+    contentSecurityPolicy,
     isNew,
   });
   const addressString = formatAddress(address);
@@ -166,7 +191,9 @@ export async function handleCommit(
     url: siteUrl(env, addressString),
     alias,
     manifestHash: hash,
-    expiresAt,
+    expiresAt: resolvedTtl.expiresAt,
+    ttl: resolvedTtl.ttl,
+    ttlSource: resolvedTtl.ttlSource,
     protected: protectedSite,
     seq,
   });

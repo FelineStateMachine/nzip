@@ -46,11 +46,14 @@ nzip
 ├─ --version [--json]                     show the installed CLI version
 ├─ auth [--server URL] [--token T]       authenticate and save config
 ├─ status                                show server and vault status
+├─ app
+│  ├─ init <alias|vault:alias>           reserve a stable app URL
+│  └─ deploy                             build and deploy the configured lofi app
 ├─ vault
-│  ├─ add <name> [--slot N] [--description TEXT]
-│  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+│  ├─ add <name> [--slot N] [--default-ttl 14d|forever|inherit]
+│  ├─ update <name> [--default-ttl 14d|forever|inherit]
 │  ├─ ls                                 list vaults
-│  └─ default <name>                     set the default vault
+│  └─ default <temporary|permanent> <name>
 ├─ site
 │  ├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
 │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
@@ -69,12 +72,23 @@ nzip
    └─ revoke <device-id> [--yes]         revoke a notification device
 ```
 
-Vault descriptions are included in `vault ls --json`. Use
-`nzip vault update <name> --no-description` to clear one.
+Vault descriptions, lifecycle roles, configured TTLs, and effective TTLs are included in
+`vault ls --json`. Use `nzip vault update <name> --no-description` to clear a description,
+`--default-ttl inherit` to restore the global fallback, and
+`nzip vault default <temporary|permanent> <name>` to select lifecycle defaults.
 
-Password and TTL are committed with the content. On a new site, omitting `--ttl` uses 14 days and
-omitting `--password` creates an unprotected site. On an existing target, omitted settings preserve
-their current values. Pass `--no-password` to clear protection explicitly.
+Password and TTL are committed with the content. TTL precedence is explicit flag, existing-site
+expiry, vault default, then the global 14-day fallback. Fresh servers create `personal` in slot `0`
+as the temporary 14-day default and `public` in slot `f` as the permanent forever default, without
+overwriting occupied slots on upgrade. `public` does not mean unprotected. Pass `--no-password` to
+clear protection explicitly. Push JSON includes the resolved `ttl` and `ttlSource`.
+
+For a lofi PWA, run `nzip app init <alias>` before editing its deployed credential origins. The
+command reserves the permanent default vault's final URL and writes a token-free `nzip.app.json`.
+After adding the printed origin to `src/app.ts` `credentialOrigins`, run `nzip app deploy`. It
+builds at `/`, validates the lofi output and stable identity settings, mirrors the generated CSP,
+and pushes to the reservation. The address remains reserved after content deletion or expiry and is
+never returned to ordinary site allocation.
 
 `nzip site cp work:demo ./recovered-demo` reconstructs the current hosted bundle into an empty
 directory. It uses the configured bearer token, verifies file hashes, and never exposes source via

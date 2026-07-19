@@ -22,7 +22,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:wrangler@^4.110.0"
+        "npm:wrangler@^4.112.0"
       ]
     },
     "members": {

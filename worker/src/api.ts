@@ -2,9 +2,10 @@ import type { Env } from "./env.ts";
 import { json } from "./env.ts";
 import { ApiError, apiErrorResponse } from "./api/errors.ts";
 import { handleBlobPut, handleCommit, handlePrepare } from "./api/push.ts";
+import { handleAppInit } from "./api/apps.ts";
 import { handleSite, handleSiteList } from "./api/sites.ts";
 import { handleStatus } from "./api/status.ts";
-import { handleVault, handleVaults } from "./api/vaults.ts";
+import { handleDefaultVault, handleVault, handleVaults } from "./api/vaults.ts";
 import { sendAlertTest } from "./security_alerts.ts";
 import { handleNotifySend } from "./notify.ts";
 import {
@@ -64,6 +65,9 @@ export async function api(
     if (parts[1] === "push" && parts[2] === "prepare" && method === "POST") {
       return await handlePrepare(request, env);
     }
+    if (parts[1] === "apps" && parts.length === 2 && method === "POST") {
+      return await handleAppInit(request, env);
+    }
     if (parts[1] === "push" && parts[2] === "commit" && method === "POST") {
       return await handleCommit(request, env, ctx);
     }
@@ -87,6 +91,11 @@ export async function api(
     }
     if (parts[1] === "vaults" && parts.length === 3 && method === "PATCH") {
       return await handleVault(request, env, parts[2]);
+    }
+    if (
+      parts[1] === "default-vaults" && parts.length === 3 && method === "PUT"
+    ) {
+      return await handleDefaultVault(request, env, parts[2]);
     }
     if (parts[1] === "sites" && parts.length === 2 && method === "GET") {
       return await handleSiteList(url, env);

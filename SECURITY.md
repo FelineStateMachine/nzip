@@ -12,6 +12,13 @@ nzip's unlock cookies are host-only. The control-plane shorthand
 `https://<control-origin>/<address>` is redirect-only and never serves artifact
 bytes.
 
+App origins are treated as permanent identity boundaries. `app init` records an
+address tombstone before deployment, and neither site deletion nor expiry makes
+that address allocatable again. This avoids handing a previous application's
+service-worker scope, browser storage namespace, or passkey origin to unrelated
+future content. A vault named `public` describes durable retention; it does not
+disable password protection or make an address confidential.
+
 Subdomain isolation is a browser security boundary, not a content-safety review.
 A hosted application still has its own origin's ambient authority, can make
 cross-origin network requests where a target permits them, and can deceive its
@@ -40,6 +47,7 @@ suggested mitigation.
 - Every `/api/*` management route requires the deployment-wide bearer token.
 - The bearer token stays in Worker secrets and the CLI's mode-0600 configuration
   file; browsers and installed notification apps never receive it.
+- `nzip.app.json` contains a public target and origin but never the bearer token.
 - Public site addresses occupy only 16 bits and should be treated as enumerable.
 - The wildcard route accepts only exact four-character lowercase hexadecimal
   site hostnames. Unknown wildcard hosts cannot dispatch management or

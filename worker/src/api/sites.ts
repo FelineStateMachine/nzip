@@ -1,9 +1,5 @@
 import { formatAddress } from "../../../shared/mod.ts";
-import type {
-  PatchSiteRequest,
-  RevertRequest,
-  SourceResponse,
-} from "../../../shared/mod.ts";
+import type { PatchSiteRequest, RevertRequest, SourceResponse } from "../../../shared/mod.ts";
 import { purgeSiteCache } from "../cache.ts";
 import {
   commitSite,
@@ -19,6 +15,7 @@ import { type Env, json, siteUrl } from "../env.ts";
 import {
   HEX64,
   passwordHashFor,
+  resolveCommitTtl,
   resolvePathTarget,
   sourceManifest,
   ttlToExpiry,
@@ -165,12 +162,15 @@ async function handleRevert(
   });
   const address = formatAddress(site.address);
   await purgeSiteCache(ctx, address);
+  const resolvedTtl = resolveCommitTtl(undefined, site.expires_at, null);
   return json({
     address,
     url: siteUrl(env, address),
     alias: site.alias,
     manifestHash: target.manifestHash,
     expiresAt: site.expires_at,
+    ttl: resolvedTtl.ttl,
+    ttlSource: resolvedTtl.ttlSource,
     protected: site.password_hash !== null,
     revertedTo: target.seq,
     seq,

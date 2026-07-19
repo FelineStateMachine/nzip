@@ -151,15 +151,22 @@ export async function cmdStatus(config: Config): Promise<void> {
         status.expiringSoon > 0 ? `  ${amber(`(${status.expiringSoon} expiring <48h)`)}` : ""
       }`,
     );
+    console.log(
+      `  defaults: temporary=${status.defaultVaults.temporary ?? "unset"}  permanent=${
+        status.defaultVaults.permanent ?? "unset"
+      }  global ttl=${status.globalDefaultTtl}d`,
+    );
     if (status.vaults.length > 0) {
       console.log(table(
-        ["SLOT", "VAULT", "SITES", "DESCRIPTION"],
+        ["SLOT", "VAULT", "SITES", "DEFAULT TTL", "DEFAULT FOR", "DESCRIPTION"],
         status.vaults.map((
           v,
         ) => [
           `0x${v.slot.toString(16)}`,
           v.name,
           String(v.siteCount),
+          String(v.effectiveDefaultTtl),
+          v.defaultFor.join(","),
           v.description ?? "",
         ]),
       ));

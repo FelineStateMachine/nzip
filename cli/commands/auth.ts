@@ -49,7 +49,7 @@ export async function cmdAuth(
   }
 
   if (!config.defaultVault && status.vaults.length > 0) {
-    config.defaultVault = status.vaults[0].name;
+    config.defaultVault = status.defaultVaults?.temporary ?? status.vaults[0].name;
   }
   await saveConfig(config);
   emit(() => {
@@ -57,7 +57,7 @@ export async function cmdAuth(
       `${green("✓")} authenticated against ${server} — saved to ${configPath()}`,
     );
     if (config.defaultVault) {
-      console.log(`  default vault: ${config.defaultVault}`);
+      console.log(`  temporary default vault: ${config.defaultVault}`);
     }
   }, {
     ok: true,

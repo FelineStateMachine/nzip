@@ -1,21 +1,68 @@
-import { parseManifest, parseTarget } from "../../../shared/mod.ts";
-import type { Manifest } from "../../../shared/mod.ts";
+import { GLOBAL_DEFAULT_TTL, parseManifest, parseTarget } from "../../../shared/mod.ts";
+import type { Manifest, Ttl, TtlSource } from "../../../shared/mod.ts";
 import { resolveTarget, type SiteRow } from "../db.ts";
 import type { Env } from "../env.ts";
 import { hashPassword } from "../password.ts";
 import { ApiError, clientInput } from "./errors.ts";
 
 export const HEX64 = /^[0-9a-f]{64}$/;
-
 export function ttlToExpiry(
-  ttl: number | "forever" | undefined,
+  ttl: Ttl,
+  now = Math.floor(Date.now() / 1000),
 ): number | null {
   if (ttl === "forever") return null;
-  const days = ttl ?? 14;
-  if (!Number.isFinite(days) || days <= 0 || days > 3650) {
+  if (!Number.isFinite(ttl) || ttl <= 0 || ttl > 3650) {
     throw new ApiError(400, 'ttl must be 1-3650 days or "forever"');
   }
-  return Math.floor(Date.now() / 1000) + Math.round(days * 86400);
+  return now + Math.round(ttl * 86400);
+}
+
+export function storedDefaultTtl(value: number | null): Ttl | null {
+  return value === null ? null : value === 0 ? "forever" : value;
+}
+
+export interface ResolvedTtl {
+  expiresAt: number | null;
+  ttl: Ttl;
+  ttlSource: TtlSource;
+}
+
+/** Apply explicit → existing-site → vault → global retention precedence. */
+export function resolveCommitTtl(
+  explicit: Ttl | undefined,
+  existingExpiresAt: number | null | undefined,
+  vaultDefault: number | null,
+  now = Math.floor(Date.now() / 1000),
+): ResolvedTtl {
+  if (explicit !== undefined) {
+    return {
+      expiresAt: ttlToExpiry(explicit, now),
+      ttl: explicit,
+      ttlSource: "explicit",
+    };
+  }
+  if (existingExpiresAt !== undefined) {
+    return {
+      expiresAt: existingExpiresAt,
+      ttl: existingExpiresAt === null
+        ? "forever"
+        : Math.max(0, Math.ceil((existingExpiresAt - now) / 86400)),
+      ttlSource: "existing-site",
+    };
+  }
+  const inherited = storedDefaultTtl(vaultDefault);
+  if (inherited !== null) {
+    return {
+      expiresAt: ttlToExpiry(inherited, now),
+      ttl: inherited,
+      ttlSource: "vault",
+    };
+  }
+  return {
+    expiresAt: ttlToExpiry(GLOBAL_DEFAULT_TTL, now),
+    ttl: GLOBAL_DEFAULT_TTL,
+    ttlSource: "global",
+  };
 }
 
 export async function passwordHashFor(
@@ -34,9 +81,7 @@ export async function resolvePathTarget(
   env: Env,
   segment: string,
 ): Promise<SiteRow | null> {
-  const parsed = await clientInput(() =>
-    parseTarget(decodeURIComponent(segment))
-  );
+  const parsed = await clientInput(() => parseTarget(decodeURIComponent(segment)));
   if (parsed.kind === "address") {
     return await resolveTarget(env, { address: parsed.address });
   }

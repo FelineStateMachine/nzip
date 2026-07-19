@@ -22,6 +22,7 @@ export async function cmdPush(
   ttlRaw: string | undefined,
   password: string | undefined,
   noPassword: boolean,
+  app?: { contentSecurityPolicy?: string },
 ): Promise<void> {
   if (!path) {
     fail(
@@ -35,9 +36,20 @@ export async function cmdPush(
 
   // Resolve (and vault-guard) the target up front — before any bundling or
   // upload — so a disallowed vault is refused without touching the network.
+  const targetConfig = await (async (): Promise<Config> => {
+    if (targetRaw !== undefined && (/^[0-9a-f]{4}$/.test(targetRaw) || targetRaw.includes(":"))) {
+      return config;
+    }
+    const status = await api.status();
+    const defaultVault = status.defaultVaults?.temporary ?? config.defaultVault;
+    if (!defaultVault) {
+      fail("server has no temporary default vault — specify vault:alias or configure one");
+    }
+    return { ...config, defaultVault };
+  })();
   const target = (() => {
     try {
-      return commitTargetFor(targetRaw, config);
+      return commitTargetFor(targetRaw, targetConfig);
     } catch (e) {
       return fail((e as Error).message);
     }
@@ -95,6 +107,7 @@ export async function cmdPush(
     target,
     ttl,
     password: passwordPolicy,
+    ...(app === undefined ? {} : { app }),
   });
 
   // Breadcrumb: remember which directory this machine pushed from so

@@ -2,4 +2,4 @@
  * Semantic release version shared by published package manifests and the
  * Worker status endpoint.
  */
-export const VERSION = "0.8.0";
+export const VERSION = "0.9.0";

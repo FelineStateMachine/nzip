@@ -58,14 +58,17 @@ also the site hostname; see the parent-domain caveat in [SECURITY.md](SECURITY.m
 | ----------- | ----------- | -------------------------- |
 | address     | `2a3f`      | direct hexadecimal address |
 | vault alias | `work:demo` | alias within a named vault |
-| bare alias  | `demo`      | alias in the default vault |
+| bare alias  | `demo`      | alias in the temporary default vault |
 
 ## Features
 
 - **Instant and content-addressed.** Push one canonical manifest and only the blobs the server does
   not already have. Identical files are stored once across every site.
-- **Ephemeral by default.** Shares expire after 14 days unless `--ttl` selects another finite
-  duration or `forever`.
+- **Lifecycle-aware by default.** Fresh servers use `personal` (slot `0`, 14 days) for temporary
+  shares and `public` (slot `f`, forever) for permanent app origins. Every vault can override its
+  own default TTL.
+- **First-class lofi apps.** `app init` reserves the final browser origin before the first build;
+  `app deploy` validates and publishes a root-scoped lofi PWA without ever recycling that origin.
 - **Revertible.** The last ten pushes per site are retained and available through
   `nzip site revert`.
 - **Password-protectable.** Password policy is committed atomically with content. Signed, host-only
@@ -87,11 +90,14 @@ nzip
 ├─ --version [--json]                     show the installed CLI version
 ├─ auth [--server URL] [--token T]       authenticate and save config
 ├─ status                                show server and vault status
+├─ app
+│  ├─ init <alias|vault:alias>           reserve a stable app URL
+│  └─ deploy                             build and deploy the configured lofi app
 ├─ vault
-│  ├─ add <name> [--slot N] [--description TEXT]
-│  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+│  ├─ add <name> [--slot N] [--default-ttl 14d|forever|inherit]
+│  ├─ update <name> [--default-ttl 14d|forever|inherit]
 │  ├─ ls                                 list vaults
-│  └─ default <name>                     set the default vault
+│  └─ default <temporary|permanent> <name>
 ├─ site
 │  ├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
 │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
@@ -110,9 +116,32 @@ nzip
    └─ revoke <device-id> [--yes]         revoke a notification device
 ```
 
-Password and TTL values are committed with content. On an existing site, omitted settings preserve
-their current values; `--no-password` clears protection explicitly. Directory pushes skip dotfiles
-and `node_modules` and honor a `.nzipignore` file containing one glob per line.
+Password and TTL values are committed with content. New-site TTL resolves in this order: explicit
+`--ttl`, existing-site expiry, vault default, then the global 14-day fallback. Changing a vault
+default never rewrites existing sites. `public` names a durable namespace, not an access policy;
+sites there may still be password-protected. `status --json` and `vault ls --json` expose
+`defaultVaults`, `globalDefaultTtl`, and each vault's effective default for agent planning. Push JSON
+reports `ttl` and `ttlSource`. Directory pushes skip dotfiles and `node_modules` and honor a
+`.nzipignore` file containing one glob per line.
+
+## Host a lofi app
+
+Reserve the production origin before configuring credentials or building:
+
+```sh
+cd field-notes
+nzip app init field-notes
+# add the printed origin to src/app.ts credentialOrigins
+nzip app deploy
+```
+
+`app init` defaults to the permanent vault, is idempotent, and writes a token-free
+`nzip.app.json` that is safe to commit. Before the first deploy, the reserved URL serves a small
+not-deployed page. `app deploy` runs the configured Deno build task with `LOFI_BASE_PATH=/`, verifies
+the lofi build identity, PWA files, stable credential origin, and optional passkey RP ID, then
+publishes `dist/`. It also mirrors lofi's generated CSP as a response header. Deleting or expiring
+app content does not free its address: the origin reservation remains a permanent tombstone because
+service workers, OPFS, IndexedDB, and passkeys bind application identity to that origin.
 
 See [`cli/README.md`](cli/README.md) for detailed CLI behavior and examples.
 

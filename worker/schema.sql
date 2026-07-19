@@ -5,8 +5,23 @@ CREATE TABLE IF NOT EXISTS vaults (
   slot INTEGER PRIMARY KEY CHECK (slot BETWEEN 0 AND 15),
   name TEXT NOT NULL UNIQUE,
   description TEXT,
+  default_ttl INTEGER CHECK (default_ttl IS NULL OR default_ttl BETWEEN 0 AND 3650),
   created_at INTEGER NOT NULL
 );
+
+INSERT OR IGNORE INTO vaults (slot, name, description, default_ttl, created_at)
+VALUES (0, 'personal', 'Personal and temporary shares', 14, unixepoch());
+INSERT OR IGNORE INTO vaults (slot, name, description, default_ttl, created_at)
+VALUES (15, 'public', 'Durable public app origins', 0, unixepoch());
+
+CREATE TABLE IF NOT EXISTS vault_defaults (
+  lifecycle TEXT PRIMARY KEY CHECK (lifecycle IN ('temporary', 'permanent')),
+  vault_slot INTEGER NOT NULL REFERENCES vaults(slot)
+);
+INSERT OR IGNORE INTO vault_defaults (lifecycle, vault_slot)
+SELECT 'temporary', slot FROM vaults WHERE slot = 0 AND name = 'personal';
+INSERT OR IGNORE INTO vault_defaults (lifecycle, vault_slot)
+SELECT 'permanent', slot FROM vaults WHERE slot = 15 AND name = 'public';
 
 CREATE TABLE IF NOT EXISTS sites (
   address INTEGER PRIMARY KEY CHECK (address BETWEEN 0 AND 65535),
@@ -17,10 +32,22 @@ CREATE TABLE IF NOT EXISTS sites (
   updated_at INTEGER NOT NULL,
   expires_at INTEGER,              -- unix seconds; NULL = permanent
   password_hash TEXT,              -- PBKDF2 password verifier; NULL = public
+  content_security_policy TEXT,    -- app build CSP mirrored as a response header
   auth_version INTEGER NOT NULL DEFAULT 1, -- increment to revoke unlock cookies
   UNIQUE (vault_slot, alias)
 );
 CREATE INDEX IF NOT EXISTS idx_sites_expiry ON sites(expires_at) WHERE expires_at IS NOT NULL;
+
+-- App addresses are permanent identity tombstones. Content may disappear from
+-- sites, but a reservation row is never deleted or returned to the allocator.
+CREATE TABLE IF NOT EXISTS app_reservations (
+  address INTEGER PRIMARY KEY CHECK (address BETWEEN 0 AND 65535),
+  vault_slot INTEGER NOT NULL REFERENCES vaults(slot),
+  alias TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  retired_at INTEGER,
+  UNIQUE (vault_slot, alias)
+);
 
 CREATE TABLE IF NOT EXISTS pushes (
   address INTEGER NOT NULL REFERENCES sites(address) ON DELETE CASCADE,

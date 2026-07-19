@@ -64,7 +64,7 @@ Run checks in this order and stop at the first failure that needs user input:
    newer commands.
 3. `nzip --help` — confirm the installed command starts and inspect its supported command surface.
 4. `nzip status --json` — verify saved authentication, server reachability, and token validity.
-5. `nzip vault ls --json` — verify available vaults and the default vault.
+5. `nzip vault ls --json` — verify available vaults, `defaultVaults`, and effective TTLs.
 
 Use the JSON `error` and `hint` fields as the primary diagnosis. Re-run `nzip auth` for missing or
 rejected credentials, correct the configured server for reachability failures, and ask the user to
@@ -84,8 +84,8 @@ permissions when a sandbox blocks a check instead of reporting nzip as broken.
 
    Use `1d` for plans, designs, review pages, and other disposable agent artifacts unless the user
    requests a different review window. Choose a longer finite TTL only when the requested workflow
-   plainly needs it. Do not use `forever` by default. The nzip service default is 14 days, so always
-   pass `--ttl 1d` for these short-lived artifacts rather than relying on omission.
+   plainly needs it. Do not use `forever` by default. Vault defaults may vary, so always pass
+   `--ttl 1d` for these short-lived artifacts rather than relying on omission.
 
 4. Use an explicit `<vault>:<alias>` target when the destination matters, picking a vault from
    `nzip vault ls --json`:
@@ -108,11 +108,14 @@ nzip
 ├─ --version [--json]
 ├─ auth [--server URL] [--token T]
 ├─ status
+├─ app
+│  ├─ init <alias|vault:alias>
+│  └─ deploy
 ├─ vault
-│  ├─ add <name> [--slot N] [--description TEXT]
-│  ├─ update <name> [--name NEW_NAME] [--description TEXT | --no-description]
+│  ├─ add <name> [--slot N] [--default-ttl 14d|forever|inherit]
+│  ├─ update <name> [--default-ttl 14d|forever|inherit]
 │  ├─ ls
-│  └─ default <name>
+│  └─ default <temporary|permanent> <name>
 ├─ site
 │  ├─ push <dir|file> [target] [--ttl DAYS] [--password PW | --no-password]
 │  ├─ cp <target> [dir] [--overwrite]
@@ -138,6 +141,9 @@ change that setting. Vault descriptions appear in `vault ls` and `status`; use t
 right destination, and pass `--no-description` to clear one. A vault rename updates the invoking
 client's default vault, allow-list, and local push records, but other clients keep the old name;
 renaming to a name outside `allowVaults` is refused.
+For new sites, TTL precedence is explicit flag, existing-site expiry, vault default, then the
+global 14-day fallback. Read `ttl` and `ttlSource` from JSON results instead of inferring them.
+`public` describes durable retention, not access policy; it may still be password-protected.
 Treat `revert`, vault renames, password changes, TTL changes, and deletion as state changes; do not
 perform them while merely diagnosing. Never infer deletion confirmation.
 
@@ -167,6 +173,24 @@ short-lived but is not sufficient on its own; approval still uses the configured
 If the installed app loses its pairing cookie, instruct the user to remove it, pair again in the
 browser, wait for `paired`, and reinstall it. Revoke a device only on explicit request.
 
+## Host a lofi app
+
+Use this workflow only when the user asks to establish or deploy a durable application origin:
+
+1. Run `nzip app init <alias|vault:alias>`. Omitted vault selection uses
+   `defaultVaults.permanent`. This reserves the final URL before content exists and writes a
+   token-free `nzip.app.json` that may be committed.
+2. Add the printed exact origin to the lofi app's `src/app.ts` `credentialOrigins`. If the app uses
+   an explicit passkey RP ID, pin it to the printed hostname.
+3. Run `nzip app deploy`. It runs the configured Deno build at `/`, validates lofi PWA identity and
+   output, mirrors the generated CSP, and publishes to the reservation.
+4. Report the canonical URL plus the returned `ttl` and `ttlSource`.
+
+Never replace an existing `nzip.app.json` with a different target. App addresses are permanent
+identity tombstones: removing or expiring content does not make the origin reusable. Keep sync-node
+configuration out of `nzip.app.json`, logs, and built artifacts; lofi-node remains an orthogonal
+application concern.
+
 ## Sane defaults
 
 - Keep generated HTML in `.nzip-<purpose>/`, not a system temp directory or a tracked source
@@ -174,6 +198,7 @@ browser, wait for `paired`, and reinstall it. Revoke a device only on explicit r
 - Ignore all such directories with `.nzip-*/`.
 - Publish disposable plans and designs with `--ttl 1d`.
 - Prefer finite TTLs; use `forever` only when explicitly requested.
+- For durable lofi apps, use `app init`/`app deploy`; do not emulate the reservation with `site push`.
 - Prefer descriptive aliases and an explicit vault when identity or audience matters.
 - Preserve the local artifact directory for iteration and `nzip site where`; do not commit it.
 - Use complete, self-contained HTML and relative asset paths.

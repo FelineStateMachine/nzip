@@ -1,31 +1,39 @@
 import { parseAddress, parseManifest } from "../../shared/mod.ts";
-import { getSiteByAddress, type SiteRow } from "./db.ts";
+import { getAppReservationByAddress, getSiteByAddress, type SiteRow } from "./db.ts";
 import { siteCacheTag } from "./cache.ts";
 import type { Env } from "./env.ts";
 import { siteUrl } from "./env.ts";
 import { FAVICON_PNG } from "./favicon.ts";
-import {
-  hasValidUnlockCookie,
-  makeUnlockCookie,
-  verifyPassword,
-} from "./password.ts";
+import { hasValidUnlockCookie, makeUnlockCookie, verifyPassword } from "./password.ts";
 import { notifyLandingPage } from "./notify_ui.ts";
 
-const GONE_PAGE =
-  `<!doctype html><meta charset="utf-8"><title>expired — nzip</title>
+const GONE_PAGE = `<!doctype html><meta charset="utf-8"><title>expired — nzip</title>
 <style>body{background:#121110;color:#8a8172;font-family:ui-monospace,monospace;display:grid;place-items:center;height:100vh;margin:0}div{text-align:center}b{color:#ffb347;font-size:32px;display:block;margin-bottom:8px}</style>
 <div><b>410</b>this share expired</div>`;
 
-const NOT_FOUND_PAGE =
-  `<!doctype html><meta charset="utf-8"><title>not found — nzip</title>
+const NOT_FOUND_PAGE = `<!doctype html><meta charset="utf-8"><title>not found — nzip</title>
 <style>body{background:#121110;color:#8a8172;font-family:ui-monospace,monospace;display:grid;place-items:center;height:100vh;margin:0}div{text-align:center}b{color:#ffb347;font-size:32px;display:block;margin-bottom:8px}</style>
 <div><b>404</b>nothing here</div>`;
+
+const NOT_DEPLOYED_PAGE =
+  `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>not deployed — nzip</title>
+<style>body{background:#121110;color:#8a8172;font-family:ui-monospace,monospace;display:grid;place-items:center;height:100vh;margin:0}div{text-align:center}b{color:#ffb347;font-size:32px;display:block;margin-bottom:8px}</style>
+<div><b>reserved</b>this app is not deployed yet</div>`;
 
 const MAX_UNLOCK_BODY_BYTES = 4096;
 const MAX_PASSWORD_LENGTH = 256;
 const ARTIFACT_SECURITY_HEADERS = {
   "origin-agent-cluster": "?1",
 } as const;
+
+function artifactSecurityHeaders(site?: SiteRow): HeadersInit {
+  return {
+    ...ARTIFACT_SECURITY_HEADERS,
+    ...(site?.content_security_policy
+      ? { "content-security-policy": site.content_security_policy }
+      : {}),
+  };
+}
 
 function htmlResponse(
   body: string,
@@ -108,13 +116,14 @@ async function handleUnlock(
   site: SiteRow,
   address: string,
 ): Promise<Response> {
+  const securityHeaders = artifactSecurityHeaders(site);
   const fallbackTarget = "/";
   const contentLength = req.headers.get("content-length");
   if (contentLength === null) {
     return htmlResponse(
       unlockForm(address, fallbackTarget, "request size required"),
       411,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   const declaredBytes = Number(contentLength);
@@ -122,14 +131,14 @@ async function handleUnlock(
     return htmlResponse(
       unlockForm(address, fallbackTarget, "invalid request size"),
       400,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   if (declaredBytes > MAX_UNLOCK_BODY_BYTES) {
     return htmlResponse(
       unlockForm(address, fallbackTarget, "request too large"),
       413,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   const bytes = new Uint8Array(await req.arrayBuffer());
@@ -137,14 +146,14 @@ async function handleUnlock(
     return htmlResponse(
       unlockForm(address, fallbackTarget, "request too large"),
       413,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   if (bytes.length !== declaredBytes) {
     return htmlResponse(
       unlockForm(address, fallbackTarget, "request size mismatch"),
       400,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   const contentType = req.headers.get("content-type")?.split(";", 1)[0].trim()
@@ -153,7 +162,7 @@ async function handleUnlock(
     return htmlResponse(
       unlockForm(address, fallbackTarget, "unsupported form"),
       415,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   const form = new URLSearchParams(new TextDecoder().decode(bytes));
@@ -163,7 +172,7 @@ async function handleUnlock(
     return htmlResponse(
       unlockForm(address, returnTarget, "password too long"),
       400,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   if (
@@ -173,7 +182,7 @@ async function handleUnlock(
     return htmlResponse(
       unlockForm(address, returnTarget, "wrong password"),
       401,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
   return new Response(null, {
@@ -181,7 +190,7 @@ async function handleUnlock(
     headers: {
       location: returnTarget,
       "set-cookie": await makeUnlockCookie(env, address, site.auth_version),
-      ...ARTIFACT_SECURITY_HEADERS,
+      ...securityHeaders,
     },
   });
 }
@@ -225,8 +234,11 @@ async function serveControlOrigin(
   if (!m) return htmlResponse(NOT_FOUND_PAGE, 404);
   const addressStr = m[1];
 
-  const site = await getSiteByAddress(env, parseAddress(addressStr));
-  if (!site) return htmlResponse(NOT_FOUND_PAGE, 404);
+  const address = parseAddress(addressStr);
+  const site = await getSiteByAddress(env, address);
+  if (!site && !(await getAppReservationByAddress(env, address))) {
+    return htmlResponse(NOT_FOUND_PAGE, 404);
+  }
   return publicSiteRedirect(
     env,
     m[2] ?? "/",
@@ -243,13 +255,18 @@ async function serveSiteOrigin(
   addressStr: string,
 ): Promise<Response> {
   const path = url.pathname;
-  const site = await getSiteByAddress(env, parseAddress(addressStr));
+  const address = parseAddress(addressStr);
+  const site = await getSiteByAddress(env, address);
   if (!site) {
-    return htmlResponse(NOT_FOUND_PAGE, 404, ARTIFACT_SECURITY_HEADERS);
+    const reservation = await getAppReservationByAddress(env, address);
+    return reservation
+      ? htmlResponse(NOT_DEPLOYED_PAGE, 200, ARTIFACT_SECURITY_HEADERS)
+      : htmlResponse(NOT_FOUND_PAGE, 404, ARTIFACT_SECURITY_HEADERS);
   }
+  const securityHeaders = artifactSecurityHeaders(site);
   const now = Math.floor(Date.now() / 1000);
   if (site.expires_at !== null && site.expires_at < now) {
-    return htmlResponse(GONE_PAGE, 410, ARTIFACT_SECURITY_HEADERS);
+    return htmlResponse(GONE_PAGE, 410, securityHeaders);
   }
 
   // Password gate.
@@ -263,7 +280,7 @@ async function serveSiteOrigin(
     return htmlResponse(
       unlockForm(addressStr, `${url.pathname}${url.search}`),
       401,
-      ARTIFACT_SECURITY_HEADERS,
+      securityHeaders,
     );
   }
 
@@ -271,7 +288,7 @@ async function serveSiteOrigin(
     `manifest/${site.current_manifest}`,
   );
   if (!manifestObj) {
-    return htmlResponse(NOT_FOUND_PAGE, 404, ARTIFACT_SECURITY_HEADERS);
+    return htmlResponse(NOT_FOUND_PAGE, 404, securityHeaders);
   }
   const manifest = parseManifest(
     new Uint8Array(await manifestObj.arrayBuffer()),
@@ -290,7 +307,7 @@ async function serveSiteOrigin(
     try {
       assetPath = decodeURIComponent(path.slice(1));
     } catch {
-      return htmlResponse(NOT_FOUND_PAGE, 404, ARTIFACT_SECURITY_HEADERS);
+      return htmlResponse(NOT_FOUND_PAGE, 404, securityHeaders);
     }
     explicitIndexPath = /(^|\/)index\.html$/.test(assetPath);
     if (assetPath === "" || assetPath.endsWith("/")) assetPath += "index.html";
@@ -315,9 +332,7 @@ async function serveSiteOrigin(
   // emit same-page and anchor links as `index.html` or `index.html#section`;
   // browsers preserve the fragment while following this redirect.
   if (explicitIndexPath && entry) {
-    const canonicalPath = assetPath === "index.html"
-      ? "/"
-      : path.slice(0, -"index.html".length);
+    const canonicalPath = assetPath === "index.html" ? "/" : path.slice(0, -"index.html".length);
     return publicSiteRedirect(env, canonicalPath, url.search, addressStr);
   }
 
@@ -331,26 +346,24 @@ async function serveSiteOrigin(
     return publicSiteRedirect(env, `${path}/`, url.search, addressStr);
   }
   if (!entry) {
-    return htmlResponse(NOT_FOUND_PAGE, 404, ARTIFACT_SECURITY_HEADERS);
+    return htmlResponse(NOT_FOUND_PAGE, 404, securityHeaders);
   }
 
   const etag = `"${entry.h}"`;
   const protectedSite = site.password_hash !== null;
-  const cacheControl = protectedSite
-    ? "private, no-store"
-    : "public, max-age=60";
+  const cacheControl = protectedSite ? "private, no-store" : "public, max-age=60";
   // Never validate a previously cached protected response with 304: doing so
   // would let the browser reuse its stored body after the site was locked.
   if (!protectedSite && req.headers.get("if-none-match") === etag) {
     return new Response(null, {
       status: 304,
-      headers: { etag, ...publicSiteHeaders(addressStr) },
+      headers: { etag, ...publicSiteHeaders(addressStr), ...securityHeaders },
     });
   }
 
   const blob = await env.CONTENT.get(`blob/${entry.h}`);
   if (!blob) {
-    return htmlResponse(NOT_FOUND_PAGE, 404, ARTIFACT_SECURITY_HEADERS);
+    return htmlResponse(NOT_FOUND_PAGE, 404, securityHeaders);
   }
 
   return new Response(blob.body, {
@@ -362,7 +375,7 @@ async function serveSiteOrigin(
       // survive the password check in a browser or intermediary cache.
       "cache-control": cacheControl,
       ...(protectedSite ? {} : { "cache-tag": siteCacheTag(addressStr) }),
-      ...ARTIFACT_SECURITY_HEADERS,
+      ...securityHeaders,
     },
   });
 }
