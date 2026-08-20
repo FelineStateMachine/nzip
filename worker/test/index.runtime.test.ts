@@ -225,7 +225,7 @@ describe("Worker runtime", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      version: "0.9.0",
+      version: "0.10.0",
       defaultVaults: { temporary: "personal", permanent: "public" },
       globalDefaultTtl: 14,
       vaults: expect.arrayContaining([

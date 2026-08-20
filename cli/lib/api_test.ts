@@ -32,18 +32,33 @@ Deno.test("raw addresses remain available without allowVaults", () => {
   assertEquals(commitTargetFor("2a3f", unrestricted), { address: 0x2a3f });
 });
 
-Deno.test("resolveCliTarget refuses a raw address when allowVaults is set", () => {
-  assertThrows(
-    () => resolveCliTarget("2a3f", restricted),
-    "raw address targets are not allowed by this config because allowVaults is set",
+Deno.test("resolveCliTarget accepts a raw address in an allowed authenticated vault", () => {
+  assertEquals(
+    resolveCliTarget("2a3f", { ...restricted, allowVaults: ["home"] }, [
+      { slot: 2, name: "home" },
+    ]),
+    "2a3f",
   );
 });
 
-Deno.test("commitTargetFor refuses a raw address when allowVaults is set", () => {
+Deno.test("resolveCliTarget refuses a raw address in a disallowed authenticated vault", () => {
   assertThrows(
-    () => commitTargetFor("2a3f", restricted),
-    "raw address targets are not allowed by this config because allowVaults is set",
+    () => resolveCliTarget("2a3f", restricted, [{ slot: 2, name: "work" }]),
+    'vault "work" is not allowed',
   );
+});
+
+Deno.test("resolveCliTarget refuses a raw address without authenticated slot metadata", () => {
+  assertThrows(
+    () => resolveCliTarget("2a3f", restricted),
+    "authenticated status did not identify vault slot 0x2",
+  );
+});
+
+Deno.test("commitTargetFor accepts a validated raw address when allowVaults is set", () => {
+  assertEquals(commitTargetFor("2a3f", restricted, [{ slot: 2, name: "home" }]), {
+    address: 0x2a3f,
+  });
 });
 
 Deno.test("allowVaults still accepts an allowed named target", () => {

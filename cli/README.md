@@ -55,10 +55,10 @@ nzip
 │  ├─ ls                                 list vaults
 │  └─ default <temporary|permanent> <name>
 ├─ site
-│  ├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
+│  ├─ push <dir|file> [target] [--new] [--ttl …] [--password PW | --no-password]
 │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
 │  ├─ show <target>                      show site details
-│  ├─ update <target> [--ttl …] [--password PW | --no-password]
+│  ├─ policy <target> [--ttl …] [--password PW | --no-password]
 │  ├─ ls [vault]                         list sites
 │  ├─ where <target>                     print this machine's source directory
 │  ├─ rm <target> [--yes]                delete a site
@@ -82,6 +82,12 @@ expiry, vault default, then the global 14-day fallback. Fresh servers create `pe
 as the temporary 14-day default and `public` in slot `f` as the permanent forever default, without
 overwriting occupied slots on upgrade. `public` does not mean unprotected. Pass `--no-password` to
 clear protection explicitly. Push JSON includes the resolved `ttl` and `ttlSource`.
+
+Use `site push` for content revisions and `site policy` for TTL or password changes. An untargeted
+push reuses a unique unexpired local breadcrumb for the same logical source; a directory and its
+`index.html` are treated as one source. Multiple matches stop with candidate targets instead of
+guessing; an explicit targeted push rebinds the source for later untargeted revisions. Pass `--new`
+only when a separate URL is intended.
 
 For a lofi PWA, run `nzip app init <alias>` before editing its deployed credential origins. The
 command reserves the permanent default vault's final URL and writes a token-free `nzip.app.json`.

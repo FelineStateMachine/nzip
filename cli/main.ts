@@ -46,10 +46,10 @@ commands:
   │  ├─ ls                                 list vaults
   │  └─ default <temporary|permanent> <name>
   ├─ site
-  │  ├─ push <dir|file> [target] [--ttl ...] [--password PW | --no-password]
+  │  ├─ push <dir|file> [target] [--new]      publish content; reuse source by default
   │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
   │  ├─ show <target>                      show site details
-  │  ├─ update <target> [--ttl ...] [--password PW | --no-password]
+  │  ├─ policy <target> [--ttl ...] [--password PW | --no-password]
   │  ├─ ls [vault]                         list sites
   │  ├─ where <target>                     print this machine's source directory
   │  ├─ rm <target> [--yes]                delete a site
@@ -68,7 +68,7 @@ agent mode: add --json to any command for one-line JSON on stdout;
 errors go to stderr as {"ok":false,"error":…,"hint":…} with a suggested next step.
 
 vault guard: set "allowVaults": ["home"] in config.json to restrict this install
-to named vaults — pushes/aliases outside the list are refused (agent guardrail).
+to named vaults — raw addresses are authenticated and mapped to a vault before use.
 
 notification privacy: titles and bodies may appear on a lock screen; never include
 passwords, tokens, private URLs, or sensitive personal data.
@@ -112,6 +112,7 @@ export async function main(argv = Deno.args): Promise<void> {
       "no-description",
       "all",
       "no-default-for",
+      "new",
     ],
     alias: { h: "help", V: "version", y: "yes" },
   });
@@ -144,6 +145,7 @@ export async function main(argv = Deno.args): Promise<void> {
         ttl: args.ttl,
         password: args.password,
         noPassword: args["no-password"],
+        newSite: args.new,
         overwrite: args.overwrite,
         yes: args.yes,
         toSeq,

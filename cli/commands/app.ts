@@ -192,6 +192,7 @@ async function cmdAppDeploy(config: Config): Promise<void> {
     undefined,
     undefined,
     false,
+    false,
     typeof buildInfo.csp === "string" ? { contentSecurityPolicy: buildInfo.csp } : {},
   );
 }

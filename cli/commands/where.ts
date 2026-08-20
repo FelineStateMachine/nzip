@@ -3,7 +3,7 @@
 // so it stays fast enough for `cd "$(nzip site where personal:plan)"`.
 
 import { resolveCliTarget } from "../lib/api.ts";
-import { assertRawAddressAllowed, type Config } from "../lib/config.ts";
+import { assertVaultAllowed, type Config } from "../lib/config.ts";
 import { lookup } from "../lib/paths.ts";
 import { amber, dim, emit, fail } from "../lib/fmt.ts";
 
@@ -16,7 +16,6 @@ export async function cmdWhere(
   const q = (() => {
     try {
       if (/^[0-9a-f]{4}$/.test(raw)) {
-        assertRawAddressAllowed(config);
         return { address: raw };
       }
       const [vault, alias] = resolveCliTarget(raw, config).split(":");
@@ -32,6 +31,16 @@ export async function cmdWhere(
       `no local path tracked for "${raw}" on this machine`,
       "it was pushed elsewhere (or before tracking existed) — push it again from its directory to record the path",
     );
+  }
+  if (q.address && config.allowVaults) {
+    if (!entry.vault) {
+      fail(`cannot validate the vault for locally tracked address ${q.address}`);
+    }
+    try {
+      assertVaultAllowed(entry.vault, config);
+    } catch (e) {
+      return fail((e as Error).message);
+    }
   }
 
   let exists = false;

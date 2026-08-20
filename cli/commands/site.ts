@@ -2,14 +2,14 @@ import type { Config } from "../lib/config.ts";
 import { fail } from "../lib/fmt.ts";
 import { cmdCp } from "./cp.ts";
 import { cmdPush } from "./push.ts";
-import { cmdLs, cmdRevert, cmdRm, cmdSiteShow, cmdSiteUpdate } from "./sites.ts";
+import { cmdLs, cmdRevert, cmdRm, cmdSitePolicy, cmdSiteShow } from "./sites.ts";
 import { cmdWhere } from "./where.ts";
 
 export type SiteInvocation =
   | { kind: "push"; source?: string; target?: string }
   | { kind: "cp"; target?: string; dir?: string }
   | { kind: "show"; target?: string }
-  | { kind: "update"; target?: string }
+  | { kind: "policy"; target?: string }
   | { kind: "ls"; vault?: string }
   | { kind: "where"; target?: string }
   | { kind: "rm"; target?: string }
@@ -17,7 +17,7 @@ export type SiteInvocation =
 
 export function parseSiteInvocation(rest: string[]): SiteInvocation {
   const [action, first, second, ...extra] = rest;
-  if (!action) fail("usage: nzip site <push|cp|show|update|ls|where|rm|revert> ...");
+  if (!action) fail("usage: nzip site <push|cp|show|policy|ls|where|rm|revert> ...");
   if (extra.length > 0) fail(`too many arguments for nzip site ${action}`);
   switch (action) {
     case "push":
@@ -27,9 +27,14 @@ export function parseSiteInvocation(rest: string[]): SiteInvocation {
     case "show":
       if (second !== undefined) fail("usage: nzip site show <target>");
       return { kind: "show", target: first };
+    case "policy":
+      if (second !== undefined) fail("usage: nzip site policy <target> [options]");
+      return { kind: "policy", target: first };
     case "update":
-      if (second !== undefined) fail("usage: nzip site update <target> [options]");
-      return { kind: "update", target: first };
+      return fail(
+        "site update was replaced by site policy",
+        "publish content with `nzip site push <dir|file> <target>`; change TTL/password with `nzip site policy <target> ...`",
+      );
     case "ls":
       if (second !== undefined) fail("usage: nzip site ls [vault]");
       return { kind: "ls", vault: first };
@@ -54,6 +59,7 @@ export async function cmdSiteGroup(
     ttl?: string;
     password?: string;
     noPassword: boolean;
+    newSite: boolean;
     overwrite: boolean;
     yes: boolean;
     toSeq?: number;
@@ -70,13 +76,14 @@ export async function cmdSiteGroup(
         options.ttl,
         options.password,
         options.noPassword,
+        options.newSite,
       );
     case "cp":
       return await cmdCp(config, invocation.target, invocation.dir, options.overwrite);
     case "show":
       return await cmdSiteShow(config, invocation.target);
-    case "update":
-      return await cmdSiteUpdate(
+    case "policy":
+      return await cmdSitePolicy(
         config,
         invocation.target,
         options.ttl,

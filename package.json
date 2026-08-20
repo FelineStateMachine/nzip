@@ -1,4 +1,6 @@
 {
+  "name": "nzip",
+  "private": true,
   "type": "module",
   "devDependencies": {
     "wrangler": "^4.112.0"

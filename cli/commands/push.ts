@@ -1,7 +1,7 @@
 import { ApiClient, commitTargetFor } from "../lib/api.ts";
 import { buildBundle, formatBytes } from "../lib/bundle.ts";
 import type { Config } from "../lib/config.ts";
-import { recordPush } from "../lib/paths.ts";
+import { lookupBySource, recordPush } from "../lib/paths.ts";
 import { amber, bold, cyan, dim, emit, fail, green, parseTtl, ttlLeft } from "../lib/fmt.ts";
 
 const UPLOAD_CONCURRENCY = 6;
@@ -22,26 +22,53 @@ export async function cmdPush(
   ttlRaw: string | undefined,
   password: string | undefined,
   noPassword: boolean,
+  newSite: boolean,
   app?: { contentSecurityPolicy?: string },
 ): Promise<void> {
   if (!path) {
     fail(
-      "usage: nzip site push <dir|file> [target] [--ttl 14d|forever] [--password PW | --no-password]",
+      "usage: nzip site push <dir|file> [target] [--new] [--ttl 14d|forever] [--password PW | --no-password]",
     );
   }
   if (password !== undefined && noPassword) {
     fail("choose either --password or --no-password, not both");
   }
+  if (newSite && targetRaw !== undefined) {
+    fail("--new cannot be combined with an explicit target");
+  }
   const api = new ApiClient(config);
+
+  let effectiveTargetRaw = targetRaw;
+  if (effectiveTargetRaw === undefined && !newSite) {
+    const matches = await lookupBySource(path);
+    if (matches.length === 1) {
+      effectiveTargetRaw = matches[0].address;
+    } else if (matches.length > 1) {
+      fail(
+        `multiple existing sites were pushed from this source: ${
+          matches.map((entry) => entry.address).join(", ")
+        }`,
+        "pass the intended target explicitly, or pass --new to create a separate site",
+      );
+    }
+  }
 
   // Resolve (and vault-guard) the target up front — before any bundling or
   // upload — so a disallowed vault is refused without touching the network.
-  const targetConfig = await (async (): Promise<Config> => {
-    if (targetRaw !== undefined && (/^[0-9a-f]{4}$/.test(targetRaw) || targetRaw.includes(":"))) {
+  const rawAddress = effectiveTargetRaw !== undefined &&
+    /^[0-9a-f]{4}$/.test(effectiveTargetRaw);
+  const needsStatus = effectiveTargetRaw === undefined ||
+    (effectiveTargetRaw !== undefined && !rawAddress && !effectiveTargetRaw.includes(":")) ||
+    (rawAddress && config.allowVaults !== undefined);
+  const status = needsStatus ? await api.status() : undefined;
+  const targetConfig = (() => {
+    if (
+      effectiveTargetRaw !== undefined &&
+      (/^[0-9a-f]{4}$/.test(effectiveTargetRaw) || effectiveTargetRaw.includes(":"))
+    ) {
       return config;
     }
-    const status = await api.status();
-    const defaultVault = status.defaultVaults?.temporary ?? config.defaultVault;
+    const defaultVault = status?.defaultVaults?.temporary ?? config.defaultVault;
     if (!defaultVault) {
       fail("server has no temporary default vault — specify vault:alias or configure one");
     }
@@ -49,7 +76,7 @@ export async function cmdPush(
   })();
   const target = (() => {
     try {
-      return commitTargetFor(targetRaw, targetConfig);
+      return commitTargetFor(effectiveTargetRaw, targetConfig, status?.vaults);
     } catch (e) {
       return fail((e as Error).message);
     }
@@ -119,6 +146,7 @@ export async function cmdPush(
     path,
     url: res.url,
     expiresAt: res.expiresAt,
+    rebindSource: targetRaw !== undefined,
   }).catch(() => {});
 
   const label = res.alias ? `${"vault" in target ? target.vault : "?"}:${res.alias}` : res.address;

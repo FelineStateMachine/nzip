@@ -5,7 +5,7 @@
 // Kept clean by three forces: expired entries are dropped on every write,
 // `nzip site rm` deletes its entry, and `nzip site ls` reconciles against the live set.
 
-import { join, resolve } from "@std/path";
+import { basename, dirname, join, resolve } from "@std/path";
 import { configDir } from "./config.ts";
 
 export interface PathEntry {
@@ -27,6 +27,30 @@ function pathsFile(): string {
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
+}
+
+/**
+ * Canonical identity for a pushed source. A directory and its entry-point
+ * index.html are the same logical site, while other single-file pushes retain
+ * their own file identity.
+ */
+export function sourceRoot(path: string): string {
+  let absolute: string;
+  try {
+    absolute = Deno.realPathSync(path);
+  } catch {
+    absolute = resolve(path);
+  }
+
+  try {
+    const stat = Deno.statSync(absolute);
+    if (stat.isFile && basename(absolute).toLowerCase() === "index.html") {
+      return dirname(absolute);
+    }
+  } catch {
+    // Preserve a stable best-effort identity when the source has moved.
+  }
+  return absolute;
 }
 
 async function load(): Promise<Registry> {
@@ -61,8 +85,17 @@ export async function recordPush(entry: {
   path: string;
   url: string;
   expiresAt: number | null;
+  rebindSource?: boolean;
 }): Promise<void> {
   const reg = pruneExpired(await load());
+  if (entry.rebindSource) {
+    const root = sourceRoot(entry.path);
+    for (const [addr, existing] of Object.entries(reg)) {
+      if (addr !== entry.address && sourceRoot(existing.path) === root) {
+        delete reg[addr];
+      }
+    }
+  }
   // An alias points at exactly one address at a time; clear any stale
   // entry that still claims this vault:alias under a different address.
   if (entry.vault && entry.alias) {
@@ -75,12 +108,13 @@ export async function recordPush(entry: {
       }
     }
   }
-  let abs: string;
-  try {
-    abs = Deno.realPathSync(entry.path); // canonical absolute path; file exists now
-  } catch {
-    abs = resolve(entry.path);
-  }
+  const abs = (() => {
+    try {
+      return Deno.realPathSync(entry.path); // canonical absolute path; file exists now
+    } catch {
+      return resolve(entry.path);
+    }
+  })();
   reg[entry.address] = {
     address: entry.address,
     vault: entry.vault,
@@ -105,6 +139,15 @@ export async function lookup(
     }
   }
   return null;
+}
+
+/** Find every unexpired local breadcrumb produced from the same logical source. */
+export async function lookupBySource(path: string): Promise<PathEntry[]> {
+  const wanted = sourceRoot(path);
+  const reg = pruneExpired(await load());
+  return Object.values(reg)
+    .filter((entry) => sourceRoot(entry.path) === wanted)
+    .sort((a, b) => b.pushedAt - a.pushedAt);
 }
 
 /** Rewrite breadcrumbs after `nzip vault update --name` so `nzip site where` keeps working. */

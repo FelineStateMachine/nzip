@@ -87,6 +87,12 @@ permissions when a sandbox blocks a check instead of reporting nzip as broken.
    plainly needs it. Do not use `forever` by default. Vault defaults may vary, so always pass
    `--ttl 1d` for these short-lived artifacts rather than relying on omission.
 
+   When revising an artifact, rerun the push from the same artifact root or pass the previously
+   returned target explicitly. An untargeted push reuses a unique local breadcrumb for that logical
+   source, treating a directory and its `index.html` as the same site. If multiple sites match, it
+   stops and lists candidates; select the intended existing target to rebind later revisions.
+   Never pass `--new` unless the user asked for a separate URL.
+
 4. Use an explicit `<vault>:<alias>` target when the destination matters, picking a vault from
    `nzip vault ls --json`:
 
@@ -117,10 +123,10 @@ nzip
 │  ├─ ls
 │  └─ default <temporary|permanent> <name>
 ├─ site
-│  ├─ push <dir|file> [target] [--ttl DAYS] [--password PW | --no-password]
+│  ├─ push <dir|file> [target] [--new] [--ttl DAYS] [--password PW | --no-password]
 │  ├─ cp <target> [dir] [--overwrite]
 │  ├─ show <target>
-│  ├─ update <target> [--ttl DAYS] [--password PW | --no-password]
+│  ├─ policy <target> [--ttl DAYS] [--password PW | --no-password]
 │  ├─ ls [vault]
 │  ├─ where <target>
 │  ├─ rm <target> [--yes]
@@ -144,6 +150,9 @@ renaming to a name outside `allowVaults` is refused.
 For new sites, TTL precedence is explicit flag, existing-site expiry, vault default, then the
 global 14-day fallback. Read `ttl` and `ttlSource` from JSON results instead of inferring them.
 `public` describes durable retention, not access policy; it may still be password-protected.
+Use `site push` to publish revised content and `site policy` only to change TTL or password. An
+unaliased address is still a stable revision target; aliases are optional handles, not a requirement
+for retaining the same URL.
 Treat `revert`, vault renames, password changes, TTL changes, and deletion as state changes; do not
 perform them while merely diagnosing. Never infer deletion confirmation.
 
@@ -200,6 +209,8 @@ application concern.
 - Prefer finite TTLs; use `forever` only when explicitly requested.
 - For durable lofi apps, use `app init`/`app deploy`; do not emulate the reservation with `site push`.
 - Prefer descriptive aliases and an explicit vault when identity or audience matters.
+- Preserve a previously returned URL across revisions; use `--new` only for an intentionally
+  separate share.
 - Preserve the local artifact directory for iteration and `nzip site where`; do not commit it.
 - Use complete, self-contained HTML and relative asset paths.
 - Use read-only status, list, and inspect operations before mutations when destination state is

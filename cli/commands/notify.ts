@@ -1,5 +1,5 @@
 import type { NotifyApprovalPreview, NotifyDeviceInfo, NotifyRequest } from "@nzip/shared";
-import { ApiClient, resolveCliTarget } from "../lib/api.ts";
+import { ApiClient, resolveCliTargetWithStatus } from "../lib/api.ts";
 import type { Config } from "../lib/config.ts";
 import { ago, bold, cyan, dim, emit, fail, green, table } from "../lib/fmt.ts";
 
@@ -167,7 +167,7 @@ export async function cmdNotify(
     if (options.title !== undefined) event.title = options.title;
     if (options.tag !== undefined) event.tag = options.tag;
     if (options.open !== undefined) {
-      const target = resolveCliTarget(options.open, config);
+      const target = await resolveCliTargetWithStatus(options.open, config, api);
       const site = await api.siteDetail(target);
       event.path = `/${site.address}`;
     }

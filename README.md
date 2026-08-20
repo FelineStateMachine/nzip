@@ -77,9 +77,10 @@ also the site hostname; see the parent-domain caveat in [SECURITY.md](SECURITY.m
 - **Owner notifications.** Explicitly approved phones receive Web Push notifications with bounded,
   same-origin click targets.
 - **Machine-local breadcrumbs.** `nzip site where` locates the source directory recorded during a
-  push.
-- **Vault guardrails.** Optional `allowVaults` configuration refuses disallowed vaults and raw
-  addresses before upload.
+  push. An untargeted push from the same logical source updates its unique existing site; a
+  directory and its `index.html` count as the same source. Pass `--new` to create another address.
+- **Vault guardrails.** Optional `allowVaults` configuration refuses disallowed vaults before
+  upload. Raw addresses are mapped to their authenticated vault slot before the same check.
 - **Observable abuse controls.** Enumeration is rate-limited and evaluated through bounded,
   privacy-preserving telemetry.
 
@@ -99,10 +100,10 @@ nzip
 │  ├─ ls                                 list vaults
 │  └─ default <temporary|permanent> <name>
 ├─ site
-│  ├─ push <dir|file> [target] [--ttl …] [--password PW | --no-password]
+│  ├─ push <dir|file> [target] [--new] [--ttl …] [--password PW | --no-password]
 │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
 │  ├─ show <target>                      show site details
-│  ├─ update <target> [--ttl …] [--password PW | --no-password]
+│  ├─ policy <target> [--ttl …] [--password PW | --no-password]
 │  ├─ ls [vault]                         list sites
 │  ├─ where <target>                     print this machine's source directory
 │  ├─ rm <target> [--yes]                delete a site
@@ -123,6 +124,12 @@ sites there may still be password-protected. `status --json` and `vault ls --jso
 `defaultVaults`, `globalDefaultTtl`, and each vault's effective default for agent planning. Push JSON
 reports `ttl` and `ttlSource`. Directory pushes skip dotfiles and `node_modules` and honor a
 `.nzipignore` file containing one glob per line.
+
+Content revisions use `site push`; access and expiry changes use `site policy`. With no explicit
+target, `site push` reuses a unique unexpired local breadcrumb for the same logical source. It stops
+when multiple sites match instead of guessing. Pass the intended target to resolve the ambiguity,
+which rebinds later untargeted pushes to that site, or pass `--new` only when a separate URL is
+desired.
 
 ## Host a lofi app
 

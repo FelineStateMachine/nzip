@@ -22,7 +22,8 @@ import type {
   VaultInfo,
   VaultLifecycle,
 } from "@nzip/shared";
-import { assertRawAddressAllowed, assertVaultAllowed, type Config } from "./config.ts";
+import { parseAddress, vaultSlotOf } from "@nzip/shared";
+import { assertVaultAllowed, type Config } from "./config.ts";
 
 export class ApiClient {
   constructor(private config: Config) {}
@@ -243,9 +244,24 @@ export class ApiClient {
  * Resolve a CLI target string to (API path target, commit body target).
  * A bare alias picks up the default vault from config.
  */
-export function resolveCliTarget(raw: string, config: Config): string {
+export function resolveCliTarget(
+  raw: string,
+  config: Config,
+  vaults: Pick<VaultInfo, "slot" | "name">[] = [],
+): string {
   if (/^[0-9a-f]{4}$/.test(raw)) {
-    assertRawAddressAllowed(config);
+    if (config.allowVaults) {
+      const slot = vaultSlotOf(parseAddress(raw));
+      const vault = vaults.find((candidate) => candidate.slot === slot);
+      if (!vault) {
+        throw new Error(
+          `cannot validate address ${raw}: authenticated status did not identify vault slot 0x${
+            slot.toString(16)
+          }`,
+        );
+      }
+      assertVaultAllowed(vault.name, config);
+    }
     return raw;
   }
   if (raw.includes(":")) {
@@ -266,6 +282,7 @@ export function resolveCliTarget(raw: string, config: Config): string {
 export function commitTargetFor(
   raw: string | undefined,
   config: Config,
+  vaults: Pick<VaultInfo, "slot" | "name">[] = [],
 ): Target {
   if (raw === undefined) {
     const vault = config.defaultVault;
@@ -274,10 +291,20 @@ export function commitTargetFor(
     return { vault };
   }
   if (/^[0-9a-f]{4}$/.test(raw)) {
-    assertRawAddressAllowed(config);
+    resolveCliTarget(raw, config, vaults);
     return { address: parseInt(raw, 16) };
   }
-  const resolved = resolveCliTarget(raw, config);
+  const resolved = resolveCliTarget(raw, config, vaults);
   const [vault, alias] = resolved.split(":");
   return { vault, alias };
+}
+
+/** Resolve a target, fetching vault-slot metadata only when a raw address needs guarding. */
+export async function resolveCliTargetWithStatus(
+  raw: string,
+  config: Config,
+  api: Pick<ApiClient, "status">,
+): Promise<string> {
+  const vaults = /^[0-9a-f]{4}$/.test(raw) && config.allowVaults ? (await api.status()).vaults : [];
+  return resolveCliTarget(raw, config, vaults);
 }

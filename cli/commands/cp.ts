@@ -2,7 +2,7 @@
 
 import { dirname, join } from "@std/path";
 import { sha256hex, validatePath } from "@nzip/shared";
-import { ApiClient, resolveCliTarget } from "../lib/api.ts";
+import { ApiClient, resolveCliTargetWithStatus } from "../lib/api.ts";
 import { formatBytes } from "../lib/bundle.ts";
 import type { Config } from "../lib/config.ts";
 import { bold, cyan, emit, fail, green } from "../lib/fmt.ts";
@@ -25,10 +25,14 @@ export interface CopyResult {
   bytes: number;
 }
 
-function targetOrFail(raw: string | undefined, config: Config): string {
+async function targetOrFail(
+  raw: string | undefined,
+  config: Config,
+  api: ApiClient,
+): Promise<string> {
   if (!raw) fail("usage: nzip site cp <target> [dir] [--overwrite]");
   try {
-    return resolveCliTarget(raw, config);
+    return await resolveCliTargetWithStatus(raw, config, api);
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -93,8 +97,8 @@ export async function cmdCp(
   destinationRaw: string | undefined,
   overwrite: boolean,
 ): Promise<void> {
-  const target = targetOrFail(raw, config);
   const api = new ApiClient(config);
+  const target = await targetOrFail(raw, config, api);
   const result = await downloadSource(api, target, destinationRaw, overwrite);
 
   emit(
