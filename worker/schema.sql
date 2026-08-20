@@ -102,7 +102,9 @@ CREATE TABLE IF NOT EXISTS security_notifications (
   created_at INTEGER NOT NULL,
   sent_at INTEGER,
   attempts INTEGER NOT NULL DEFAULT 0,
-  last_error TEXT
+  last_error TEXT,
+  lease_owner TEXT,
+  lease_expires_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_security_notifications_pending

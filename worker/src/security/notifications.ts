@@ -9,6 +9,8 @@ interface NotificationRow {
   attempts: number;
 }
 
+const DELIVERY_LEASE_SECONDS = 60;
+
 function subject(action: Exclude<AlertAction, null>, severity: number): string {
   if (action === "resolve") return "[nzip] Enumeration incident resolved";
   if (action === "summary") return "[nzip] Enumeration incident summary";
@@ -87,12 +89,26 @@ export async function drainSecurityNotifications(
   env: Env,
   now = Math.floor(Date.now() / 1000),
 ): Promise<void> {
-  const pending = await env.DB.prepare(
+  const candidates = await env.DB.prepare(
     `SELECT id, subject, text, html, attempts FROM security_notifications
-     WHERE sent_at IS NULL ORDER BY created_at, id LIMIT 10`,
-  ).all<NotificationRow>();
+     WHERE sent_at IS NULL AND (lease_expires_at IS NULL OR lease_expires_at < ?)
+     ORDER BY created_at, id LIMIT 10`,
+  ).bind(now).all<NotificationRow>();
 
-  for (const notification of pending.results) {
+  const owner = crypto.randomUUID();
+  for (const notification of candidates.results) {
+    const claim = await env.DB.prepare(
+      `UPDATE security_notifications SET lease_owner = ?, lease_expires_at = ?
+       WHERE id = ? AND sent_at IS NULL
+       AND (lease_expires_at IS NULL OR lease_expires_at < ?)`,
+    ).bind(
+      owner,
+      now + DELIVERY_LEASE_SECONDS,
+      notification.id,
+      now,
+    ).run();
+    if (claim.meta.changes !== 1) continue;
+
     const attempt = notification.attempts + 1;
     try {
       await env.EMAIL.send({
@@ -104,8 +120,9 @@ export async function drainSecurityNotifications(
       });
       await env.DB.prepare(
         `UPDATE security_notifications SET sent_at = ?, attempts = attempts + 1,
-         last_error = NULL WHERE id = ? AND sent_at IS NULL`,
-      ).bind(now, notification.id).run();
+         last_error = NULL, lease_owner = NULL, lease_expires_at = NULL
+         WHERE id = ? AND sent_at IS NULL AND lease_owner = ?`,
+      ).bind(now, notification.id, owner).run();
       console.log({
         event: "security.notification_sent",
         notificationId: notification.id,
@@ -114,9 +131,10 @@ export async function drainSecurityNotifications(
     } catch (error) {
       const message = errorMessage(error);
       await env.DB.prepare(
-        `UPDATE security_notifications SET attempts = attempts + 1, last_error = ?
-         WHERE id = ? AND sent_at IS NULL`,
-      ).bind(message, notification.id).run();
+        `UPDATE security_notifications SET attempts = attempts + 1, last_error = ?,
+         lease_owner = NULL, lease_expires_at = NULL
+         WHERE id = ? AND sent_at IS NULL AND lease_owner = ?`,
+      ).bind(message, notification.id, owner).run();
       console.error({
         event: "security.notification_failed",
         notificationId: notification.id,

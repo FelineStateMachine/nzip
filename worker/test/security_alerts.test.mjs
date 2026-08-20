@@ -147,9 +147,13 @@ class FakeStatement {
       return { results: this.db.probes };
     }
     if (this.sql.includes("FROM security_notifications")) {
+      const [now] = this.args;
       return {
         results: [...this.db.notifications.values()]
-          .filter((row) => row.sent_at === null)
+          .filter((row) =>
+            row.sent_at === null &&
+            (row.lease_expires_at === null || row.lease_expires_at < now)
+          )
           .sort((a, b) => a.created_at - b.created_at),
       };
     }
@@ -227,6 +231,8 @@ class FakeStatement {
           sent_at: null,
           attempts: 0,
           last_error: null,
+          lease_owner: null,
+          lease_expires_at: null,
         });
       }
       return { success: true };
@@ -255,28 +261,47 @@ class FakeStatement {
           sent_at: null,
           attempts: 0,
           last_error: null,
+          lease_owner: null,
+          lease_expires_at: null,
         });
       }
       return { success: true };
     }
-    if (this.sql.includes("SET sent_at = ?")) {
-      const [sentAt, id] = this.args;
+    if (this.sql.includes("SET lease_owner = ?")) {
+      const [owner, leaseExpiresAt, id, now] = this.args;
       const row = this.db.notifications.get(id);
-      if (row?.sent_at === null) {
+      if (
+        row?.sent_at === null &&
+        (row.lease_expires_at === null || row.lease_expires_at < now)
+      ) {
+        row.lease_owner = owner;
+        row.lease_expires_at = leaseExpiresAt;
+        return { success: true, meta: { changes: 1 } };
+      }
+      return { success: true, meta: { changes: 0 } };
+    }
+    if (this.sql.includes("SET sent_at = ?")) {
+      const [sentAt, id, owner] = this.args;
+      const row = this.db.notifications.get(id);
+      if (row?.sent_at === null && row.lease_owner === owner) {
         row.sent_at = sentAt;
         row.attempts += 1;
         row.last_error = null;
+        row.lease_owner = null;
+        row.lease_expires_at = null;
       }
-      return { success: true };
+      return { success: true, meta: { changes: 1 } };
     }
     if (this.sql.includes("SET attempts = attempts + 1")) {
-      const [lastError, id] = this.args;
+      const [lastError, id, owner] = this.args;
       const row = this.db.notifications.get(id);
-      if (row?.sent_at === null) {
+      if (row?.sent_at === null && row.lease_owner === owner) {
         row.attempts += 1;
         row.last_error = lastError;
+        row.lease_owner = null;
+        row.lease_expires_at = null;
       }
-      return { success: true };
+      return { success: true, meta: { changes: 1 } };
     }
     throw new Error(`unexpected run(): ${this.sql}`);
   }
@@ -388,4 +413,47 @@ test("the daily digest is durably deduplicated by UTC day", async () => {
   );
   assert.equal(notification.sent_at, now + 60);
   assert.equal(notification.attempts, 2);
+});
+
+test("concurrent cron drains claim a security email only once", async () => {
+  const db = new FakeDb();
+  db.notifications.set("security:daily-digest:0", {
+    id: "security:daily-digest:0",
+    incident_name: "security",
+    action: "daily-digest",
+    window_bucket: 0,
+    subject: "[nzip] Daily security activity summary",
+    text: "activity",
+    html: null,
+    created_at: 100,
+    sent_at: null,
+    attempts: 0,
+    last_error: null,
+    lease_owner: null,
+    lease_expires_at: null,
+  });
+  let sends = 0;
+  const env = {
+    DB: db,
+    ALERT_EMAIL_FROM: "security@example.com",
+    ALERT_EMAIL_TO: "operator@example.com",
+    EMAIL: {
+      async send() {
+        sends += 1;
+        await new Promise((resolve) => setImmediate(resolve));
+      },
+    },
+  };
+
+  await Promise.all([
+    drainSecurityNotifications(env, 200),
+    drainSecurityNotifications(env, 200),
+  ]);
+
+  assert.equal(sends, 1);
+  const notification = db.notifications.get("security:daily-digest:0");
+  assert.equal(notification.sent_at, 200);
+  assert.equal(notification.attempts, 1);
+  assert.equal(notification.lease_owner, null);
+  assert.equal(notification.lease_expires_at, null);
 });
