@@ -5,6 +5,7 @@ import {
   commitSite,
   getSiteByAddress,
   getVaultByName,
+  getVaultBySlot,
   listSites,
   siteHistory,
   type SiteRow,
@@ -13,6 +14,7 @@ import {
 } from "../db.ts";
 import { type Env, json, siteUrl } from "../env.ts";
 import {
+  enforceVaultPolicy,
   HEX64,
   passwordHashFor,
   resolveCommitTtl,
@@ -105,6 +107,13 @@ async function handlePatch(
   const body = await readJson<PatchSiteRequest>(request);
   const expiresAt = body.ttl === undefined ? undefined : ttlToExpiry(body.ttl);
   const passwordHash = await passwordHashFor(body.password);
+  const vault = await getVaultBySlot(env, site.vault_slot);
+  if (!vault) throw new ApiError(404, "vault not found");
+  enforceVaultPolicy(
+    vault,
+    expiresAt === undefined ? site.expires_at : expiresAt,
+    passwordHash === undefined ? site.password_hash : passwordHash,
+  );
   const updates: string[] = [];
   const values: (string | number | null)[] = [];
   if (expiresAt !== undefined) {
@@ -151,6 +160,9 @@ async function handleRevert(
     }
     throw new ApiError(409, "nothing to revert to");
   }
+  const vault = await getVaultBySlot(env, site.vault_slot);
+  if (!vault) throw new ApiError(404, "vault not found");
+  enforceVaultPolicy(vault, site.expires_at, site.password_hash);
   const seq = await commitSite(env, {
     address: site.address,
     vaultSlot: site.vault_slot,

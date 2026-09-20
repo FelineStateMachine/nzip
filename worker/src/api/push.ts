@@ -28,7 +28,7 @@ import {
 } from "../db.ts";
 import { type Env, json, siteUrl } from "../env.ts";
 import { ApiError, clientInput, readJson } from "./errors.ts";
-import { HEX64, passwordHashFor, resolveCommitTtl } from "./common.ts";
+import { enforceVaultPolicy, HEX64, passwordHashFor, resolveCommitTtl } from "./common.ts";
 
 const HEAD_BATCH_SIZE = 6;
 
@@ -95,7 +95,7 @@ export async function handleCommit(
   ctx: ExecutionContext,
 ): Promise<Response> {
   const body = await readJson<CommitRequest>(request);
-  const passwordHash = await passwordHashFor(body.password);
+  let passwordHash = await passwordHashFor(body.password);
   const bytes = await clientInput(() => canonicalManifestBytes(body.manifest));
   const hash = await sha256hex(bytes);
   const missing = await missingBlobs(env, body.manifest);
@@ -166,6 +166,14 @@ export async function handleCommit(
     body.ttl,
     existingSite?.expires_at,
     vault.default_ttl,
+  );
+  if (passwordHash === undefined && !existingSite) {
+    passwordHash = vault.default_password_hash ?? null;
+  }
+  enforceVaultPolicy(
+    vault,
+    resolvedTtl.expiresAt,
+    passwordHash === undefined ? existingSite?.password_hash ?? null : passwordHash,
   );
   const protectedSite = passwordHash === undefined && existingSite
     ? existingSite.password_hash !== null

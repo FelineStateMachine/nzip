@@ -3,8 +3,7 @@ import { buildBundle, formatBytes } from "../lib/bundle.ts";
 import type { Config } from "../lib/config.ts";
 import { lookupBySource, recordPush } from "../lib/paths.ts";
 import { amber, bold, cyan, dim, emit, fail, green, parseTtl, ttlLeft } from "../lib/fmt.ts";
-
-const UPLOAD_CONCURRENCY = 6;
+import { publishBundle } from "../lib/publish.ts";
 
 export function formatPushPolicy(
   expiresAt: number | null,
@@ -93,48 +92,15 @@ export async function cmdPush(
     for (const w of bundle.warnings) console.log(`  ${amber("!")} ${w}`);
   }, undefined);
 
-  const prep = await api.prepare(bundle.manifest);
-  const dedupCount = bundle.blobs.size - prep.missing.length;
-  const missingBytes = prep.missing.reduce(
-    (n, h) => n + (bundle.blobs.get(h)?.length ?? 0),
-    0,
-  );
-  emit(() =>
-    console.log(
-      dim(
-        `  manifest ${prep.manifestHash.slice(0, 8)} — ${prep.missing.length} new blobs (${
-          formatBytes(missingBytes)
-        }), ${dedupCount} deduped`,
-      ),
-    ), undefined);
-
-  // Upload missing blobs with bounded concurrency.
-  let done = 0;
-  const queue = [...prep.missing];
-  const workers = Array.from(
-    { length: Math.min(UPLOAD_CONCURRENCY, queue.length) },
-    async () => {
-      for (let h = queue.shift(); h !== undefined; h = queue.shift()) {
-        const bytes = bundle.blobs.get(h);
-        if (!bytes) fail(`internal: missing blob bytes for ${h}`);
-        await api.uploadBlob(h, bytes);
-        done++;
-      }
-    },
-  );
-  await Promise.all(workers);
-  if (prep.missing.length > 0) {
-    emit(() => console.log(dim(`  uploaded ${done}/${prep.missing.length}`)));
-  }
-
   const ttl = ttlRaw === undefined ? undefined : parseTtl(ttlRaw);
   const passwordPolicy = noPassword ? null : password;
-  const res = await api.commit({
-    manifest: bundle.manifest,
+  const res = await publishBundle(api, bundle, {
     target,
     ttl,
     password: passwordPolicy,
     ...(app === undefined ? {} : { app }),
+  }, {
+    onProgress: ({ message }) => emit(() => console.log(dim(`  ${message}`))),
   });
 
   // Breadcrumb: remember which directory this machine pushed from so
@@ -161,10 +127,6 @@ export async function cmdPush(
     {
       ok: true,
       ...res,
-      files: fileCount,
-      newBlobs: prep.missing.length,
-      dedupedBlobs: dedupCount,
-      warnings: bundle.warnings,
     },
   );
 }

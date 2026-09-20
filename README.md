@@ -37,6 +37,17 @@ mode 0600. `nzip --version` reports the installed JSR release without requiring 
 On another machine, install the CLI and authenticate with the same server and token. Hosted vaults
 and sites are already available; only the `nzip site where` breadcrumb registry is machine-local.
 
+## AI clients and MCP
+
+This branch adds **`nzip mcp`**, a stateless stdio server for OpenClaw and other MCP clients.
+Agents discover vault purposes and enforced policies, choose an appropriate vault, publish HTML,
+and update the returned stable ID. No per-session selected site or shell-command parsing is needed.
+See [MCP setup, tools, and protocol support](cli/MCP.md).
+
+Vaults can enforce a maximum TTL and required password protection, and provide an inherited
+password for new sites. See [vault purpose and policy](worker/setup.md#vault-purpose-and-policy).
+These backend additions require migration `0008`; this branch does not deploy them automatically.
+
 ## How addresses work
 
 Every share lives at four hex characters. The first digit selects one of 16 registered vaults, and

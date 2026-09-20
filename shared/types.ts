@@ -185,6 +185,12 @@ export interface VaultInfo {
   effectiveDefaultTtl: Ttl;
   /** Lifecycle intents for which this vault is the server default. */
   defaultFor: VaultLifecycle[];
+  /** Enforced maximum remaining lifetime in days; null means no vault-specific cap. */
+  maxTtl?: number | null;
+  /** When true, every site in the vault must have password protection. */
+  requirePassword?: boolean;
+  /** Whether new sites inherit an owner-configured password verifier. Never exposes the password. */
+  hasDefaultPassword?: boolean;
 }
 
 /** Reply to `GET /api/status`: server version and a snapshot of vaults and sites. */
