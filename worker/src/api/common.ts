@@ -1,6 +1,6 @@
 import { GLOBAL_DEFAULT_TTL, parseManifest, parseTarget } from "../../../shared/mod.ts";
 import type { Manifest, Ttl, TtlSource } from "../../../shared/mod.ts";
-import { resolveTarget, type SiteRow } from "../db.ts";
+import { resolveTarget, type SiteRow, type VaultRow } from "../db.ts";
 import type { Env } from "../env.ts";
 import { hashPassword } from "../password.ts";
 import { ApiError, clientInput } from "./errors.ts";
@@ -75,6 +75,27 @@ export async function passwordHashFor(
     throw new ApiError(400, "password must be 4-256 characters");
   }
   return await hashPassword(password);
+}
+
+/** Validate effective site policy, after inheritance, for every write path. */
+export function enforceVaultPolicy(
+  vault: VaultRow,
+  expiresAt: number | null,
+  passwordHash: string | null,
+  now = Math.floor(Date.now() / 1000),
+): void {
+  if (vault.require_password === 1 && passwordHash === null) {
+    throw new ApiError(
+      400,
+      "vault requires password protection; supply a password or configure a vault default password",
+    );
+  }
+  if (
+    vault.max_ttl != null &&
+    (expiresAt === null || expiresAt > now + Math.round(vault.max_ttl * 86400))
+  ) {
+    throw new ApiError(400, `site expiry exceeds vault maximum TTL of ${vault.max_ttl} days`);
+  }
 }
 
 export async function resolvePathTarget(

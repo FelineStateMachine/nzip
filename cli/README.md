@@ -101,6 +101,22 @@ directory. It uses the configured bearer token, verifies file hashes, and never 
 the public page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were
 never stored.
 
+## MCP for AI clients
+
+See [MCP.md](MCP.md) for the proposed `nzip mcp` stdio mode, stateless create/update semantics,
+purpose-driven vault selection, supported MCP conventions, and client configuration examples.
+
+Vault policy flags (owner administration, not agent tools):
+
+```sh
+nzip vault update reviews --description "Private temporary review pages" --default-ttl 7d --max-ttl 14d --require-password --default-password-file /secure/path/review-password
+```
+
+`--max-ttl none` removes the cap; `--allow-unprotected` removes mandatory protection;
+`--no-default-password` clears only the default for future sites. Existing sites are not silently
+changed. Tightening rules is refused until existing sites comply. Password-file contents are sent
+over the authenticated API and stored only as a verifier; no password is included in JSON results.
+
 ## Notifications
 
 Pairing is closed by default. Open a 10-minute pairing window from the authenticated CLI, then open

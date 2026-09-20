@@ -13,6 +13,31 @@ export interface VaultFlags {
   defaultTtl?: string;
   defaultFor?: string;
   clearDefaultFor?: boolean;
+  maxTtl?: string;
+  requirePassword?: boolean;
+  defaultPasswordFile?: string;
+  clearDefaultPassword?: boolean;
+}
+
+async function policyFlags(flags: VaultFlags) {
+  if (flags.defaultPasswordFile && flags.clearDefaultPassword) {
+    fail("choose --default-password-file or --no-default-password");
+  }
+  const maxTtl = flags.maxTtl === undefined
+    ? undefined
+    : flags.maxTtl === "none"
+    ? null
+    : parseTtl(flags.maxTtl);
+  if (maxTtl === "forever" || (typeof maxTtl === "number" && (maxTtl <= 0 || maxTtl > 3650))) {
+    fail("--max-ttl must be 1-3650 days or none");
+  }
+  // Read a file rather than putting a shared visitor password in process arguments.
+  const defaultPassword = flags.clearDefaultPassword
+    ? null
+    : flags.defaultPasswordFile
+    ? (await Deno.readTextFile(flags.defaultPasswordFile)).replace(/\r?\n$/, "")
+    : undefined;
+  return { maxTtl, requirePassword: flags.requirePassword, defaultPassword };
 }
 
 function defaultTtlFlag(raw: string | undefined): Ttl | null | undefined {
@@ -75,12 +100,27 @@ export async function cmdVault(
         return;
       }
       console.log(table(
-        ["SLOT", "VAULT", "SITES", "DEFAULT TTL", "DEFAULT FOR", "DESCRIPTION"],
+        [
+          "SLOT",
+          "VAULT",
+          "SITES",
+          "DEFAULT TTL",
+          "MAX TTL",
+          "ACCESS",
+          "DEFAULT FOR",
+          "DESCRIPTION",
+        ],
         vaults.map((v) => [
           `0x${v.slot.toString(16)}`,
           v.defaultFor.length > 0 ? bold(v.name) : v.name,
           String(v.siteCount),
           String(v.effectiveDefaultTtl),
+          v.maxTtl == null ? "none" : String(v.maxTtl),
+          v.requirePassword
+            ? "password required"
+            : v.hasDefaultPassword
+            ? "password default"
+            : "optional",
           v.defaultFor.join(","),
           v.description ?? "",
         ]),
@@ -110,6 +150,7 @@ export async function cmdVault(
       description,
       defaultTtlFlag(flags.defaultTtl),
       lifecycleFlag(flags),
+      await policyFlags(flags),
     );
     const madeDefault = !config.defaultVault;
     if (madeDefault) await saveConfig({ ...config, defaultVault: v.name });
@@ -131,7 +172,9 @@ export async function cmdVault(
       !name || third !== undefined ||
       (newName === undefined && flags.description === undefined && !flags.clearDescription) &&
         flags.defaultTtl === undefined && flags.defaultFor === undefined &&
-        !flags.clearDefaultFor
+        !flags.clearDefaultFor && flags.maxTtl === undefined &&
+        flags.requirePassword === undefined &&
+        flags.defaultPasswordFile === undefined && !flags.clearDefaultPassword
     ) {
       fail(
         "usage: nzip vault update <name> [--name NEW_NAME] [--description TEXT | --no-description] [--default-ttl 14d|forever|inherit]",
@@ -145,6 +188,7 @@ export async function cmdVault(
       return fail((e as Error).message);
     }
     const v = await api.updateVault(name, {
+      ...await policyFlags(flags),
       name: newName,
       description,
       defaultTtl: defaultTtlFlag(flags.defaultTtl),

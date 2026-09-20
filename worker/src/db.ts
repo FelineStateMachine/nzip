@@ -38,6 +38,9 @@ export interface VaultRow {
   name: string;
   description: string | null;
   default_ttl: number | null;
+  max_ttl: number | null;
+  require_password: number;
+  default_password_hash: string | null;
   created_at: number;
 }
 
@@ -266,6 +269,9 @@ export function vaultRowToInfo(
     defaultTtl,
     effectiveDefaultTtl: defaultTtl ?? GLOBAL_DEFAULT_TTL,
     defaultFor,
+    maxTtl: row.max_ttl ?? null,
+    requirePassword: row.require_password === 1,
+    hasDefaultPassword: row.default_password_hash != null,
   };
 }
 
@@ -273,6 +279,7 @@ export async function listVaults(env: Env): Promise<VaultInfo[]> {
   const [res, defaults] = await Promise.all([
     env.DB.prepare(
       `SELECT v.slot, v.name, v.description, v.default_ttl,
+            v.max_ttl, v.require_password, v.default_password_hash,
             v.created_at, COUNT(s.address) AS site_count
      FROM vaults v LEFT JOIN sites s ON s.vault_slot = v.slot
      GROUP BY v.slot ORDER BY v.slot`,
@@ -291,6 +298,12 @@ export async function listVaults(env: Env): Promise<VaultInfo[]> {
   );
 }
 
+export interface VaultSecurityPatch {
+  maxTtl?: number | null;
+  requirePassword?: boolean;
+  defaultPasswordHash?: string | null;
+}
+
 export async function createVault(
   env: Env,
   name: string,
@@ -298,6 +311,7 @@ export async function createVault(
   description: string | null = null,
   defaultTtl: Ttl | null = null,
   defaultFor: VaultLifecycle | null = null,
+  security: VaultSecurityPatch = {},
 ): Promise<VaultRow> {
   const now = Math.floor(Date.now() / 1000);
   let chosen = slot;
@@ -316,8 +330,8 @@ export async function createVault(
   }
   const insert = env.DB.prepare(
     `INSERT INTO vaults
-     (slot, name, description, default_ttl, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
+     (slot, name, description, default_ttl, created_at, max_ttl, require_password, default_password_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       chosen,
@@ -325,6 +339,9 @@ export async function createVault(
       description,
       defaultTtl === "forever" ? 0 : defaultTtl,
       now,
+      security.maxTtl ?? null,
+      security.requirePassword ? 1 : 0,
+      security.defaultPasswordHash ?? null,
     );
   if (defaultFor === null) await insert.run();
   else {
@@ -341,6 +358,9 @@ export async function createVault(
     name,
     description,
     default_ttl: defaultTtl === "forever" ? 0 : defaultTtl,
+    max_ttl: security.maxTtl ?? null,
+    require_password: security.requirePassword ? 1 : 0,
+    default_password_hash: security.defaultPasswordHash ?? null,
     created_at: now,
   };
 }
@@ -353,7 +373,7 @@ export async function updateVault(
     description?: string | null;
     defaultTtl?: Ttl | null;
     defaultFor?: VaultLifecycle | null;
-  },
+  } & VaultSecurityPatch,
 ): Promise<VaultInfo | null> {
   const current = await getVaultByName(env, currentName);
   if (!current) return null;
@@ -370,6 +390,18 @@ export async function updateVault(
   if (patch.defaultTtl !== undefined) {
     assignments.push("default_ttl = ?");
     values.push(patch.defaultTtl === "forever" ? 0 : patch.defaultTtl);
+  }
+  if (patch.maxTtl !== undefined) {
+    assignments.push("max_ttl = ?");
+    values.push(patch.maxTtl);
+  }
+  if (patch.requirePassword !== undefined) {
+    assignments.push("require_password = ?");
+    values.push(patch.requirePassword ? 1 : 0);
+  }
+  if (patch.defaultPasswordHash !== undefined) {
+    assignments.push("default_password_hash = ?");
+    values.push(patch.defaultPasswordHash);
   }
   const statements: D1PreparedStatement[] = [];
   if (assignments.length > 0) {

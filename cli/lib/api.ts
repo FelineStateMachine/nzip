@@ -26,7 +26,7 @@ import { parseAddress, vaultSlotOf } from "@nzip/shared";
 import { assertVaultAllowed, type Config } from "./config.ts";
 
 export class ApiClient {
-  constructor(private config: Config) {}
+  constructor(private config: Config, private signal?: AbortSignal) {}
 
   private async request<T>(
     method: string,
@@ -40,6 +40,7 @@ export class ApiClient {
       : body;
     const res = await fetch(`${this.config.server}${path}`, {
       method,
+      signal: this.signal,
       headers: {
         authorization: `Bearer ${this.config.token}`,
         ...(typeof body === "string" ? { "content-type": "application/json" } : {}),
@@ -64,6 +65,7 @@ export class ApiClient {
   ): Promise<Uint8Array> {
     const res = await fetch(`${this.config.server}${path}`, {
       method,
+      signal: this.signal,
       headers: { authorization: `Bearer ${this.config.token}` },
     });
     if (!res.ok) {
@@ -160,11 +162,12 @@ export class ApiClient {
     description?: string,
     defaultTtl?: Ttl | null,
     defaultFor?: VaultLifecycle | null,
+    policy?: { maxTtl?: number | null; requirePassword?: boolean; defaultPassword?: string | null },
   ): Promise<VaultInfo> {
     return this.request(
       "POST",
       "/api/vaults",
-      JSON.stringify({ name, slot, description, defaultTtl, defaultFor }),
+      JSON.stringify({ name, slot, description, defaultTtl, defaultFor, ...policy }),
     );
   }
 
@@ -175,6 +178,9 @@ export class ApiClient {
       description?: string | null;
       defaultTtl?: Ttl | null;
       defaultFor?: VaultLifecycle | null;
+      maxTtl?: number | null;
+      requirePassword?: boolean;
+      defaultPassword?: string | null;
     },
   ): Promise<VaultInfo> {
     return this.request(

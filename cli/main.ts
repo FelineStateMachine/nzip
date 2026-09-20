@@ -37,6 +37,7 @@ commands:
   nzip
   ├─ auth [--server URL] [--token T]       authenticate against the server
   ├─ status                                show server and vault status
+  ├─ mcp [--root /absolute/path]            serve stateless MCP over stdio
   ├─ app
   │  ├─ init <alias|vault:alias>           reserve a stable app URL
   │  └─ deploy                             build and deploy the configured lofi app
@@ -70,6 +71,10 @@ errors go to stderr as {"ok":false,"error":…,"hint":…} with a suggested next
 vault guard: set "allowVaults": ["home"] in config.json to restrict this install
 to named vaults — raw addresses are authenticated and mapped to a vault before use.
 
+vault policy flags (add/update): --max-ttl DAYS|none, --require-password | --allow-unprotected,
+--default-password-file FILE | --no-default-password. New sites inherit vault defaults;
+required protection and maximum TTL are enforced by the server.
+
 notification privacy: titles and bodies may appear on a lock screen; never include
 passwords, tokens, private URLs, or sensitive personal data.
 `;
@@ -100,6 +105,9 @@ export async function main(argv = Deno.args): Promise<void> {
       "title",
       "open",
       "tag",
+      "root",
+      "max-ttl",
+      "default-password-file",
     ],
     boolean: [
       "yes",
@@ -113,8 +121,12 @@ export async function main(argv = Deno.args): Promise<void> {
       "all",
       "no-default-for",
       "new",
+      "require-password",
+      "allow-unprotected",
+      "no-default-password",
     ],
     alias: { h: "help", V: "version", y: "yes" },
+    collect: ["root"],
   });
   setJsonMode(args.json);
   const [command, ...rest] = args._.map(String);
@@ -130,6 +142,13 @@ export async function main(argv = Deno.args): Promise<void> {
   }
 
   if (command === "auth") return await cmdAuth(args.server, args.token);
+
+  if (command === "mcp") {
+    if (rest.length) fail("usage: nzip mcp [--root /absolute/path]...");
+    // Lazy import keeps SDK initialization out of ordinary CLI commands.
+    const { serveMcp } = await import("./mcp/server.ts");
+    return await serveMcp(args.root ?? []);
+  }
 
   if (!["app", "site", "status", "notify", "vault"].includes(command)) {
     fail(`unknown command: ${command}\n\n${HELP}`);
@@ -169,6 +188,9 @@ export async function main(argv = Deno.args): Promise<void> {
         all: args.all,
       });
     case "vault":
+      if (args["require-password"] && args["allow-unprotected"]) {
+        fail("choose --require-password or --allow-unprotected");
+      }
       return await cmdVault(config, rest, {
         slot,
         newName: args.name,
@@ -177,6 +199,14 @@ export async function main(argv = Deno.args): Promise<void> {
         defaultTtl: args["default-ttl"],
         defaultFor: args["default-for"],
         clearDefaultFor: args["no-default-for"],
+        maxTtl: args["max-ttl"],
+        requirePassword: args["require-password"]
+          ? true
+          : args["allow-unprotected"]
+          ? false
+          : undefined,
+        defaultPasswordFile: args["default-password-file"],
+        clearDefaultPassword: args["no-default-password"],
       });
     default:
       fail(`unknown command: ${command}\n\n${HELP}`);

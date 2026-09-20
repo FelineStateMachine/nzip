@@ -1,12 +1,18 @@
 {
-  "workspace": ["./cli", "./shared"],
+  "workspace": [
+    "./cli",
+    "./shared"
+  ],
   "tasks": {
-    "check": "deno check cli/main.ts shared/mod.ts",
+    "check": "deno check cli/main.ts cli/mcp/server.ts shared/mod.ts",
     "fmt": "deno fmt cli shared",
     "fmt:check": "deno fmt --check cli shared",
     "lint": "deno lint cli shared",
     "doc": "deno doc --lint cli/main.ts shared/mod.ts",
-    "test": "deno test --allow-read --allow-write --allow-run=deno cli shared"
+    "test": "deno test --allow-env --allow-read --allow-write --allow-run=deno cli shared"
   },
-  "fmt": { "lineWidth": 100 }
+  "fmt": {
+    "lineWidth": 100
+  },
+  "nodeModulesDir": "none"
 }

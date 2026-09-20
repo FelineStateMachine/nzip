@@ -326,3 +326,55 @@ nzip site push ./docs personal:plan --ttl forever
 
 Local development and test commands live in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
+
+## Vault purpose and policy
+
+Vaults partition sites by purpose, audience, retention, and protection. Give each vault a clear
+`description` so an AI client can select the right destination for a task. Names such as `public`
+are labels, not security guarantees.
+
+This branch adds migration `0008_vault_policies.sql`. Existing deployments must apply it before
+running the updated Worker. Inspect/backup the existing database and use the normal migration
+workflow; do not reapply the fresh schema to an existing database. Fresh installations use the
+updated `schema.sql` instead. Do not run `0008` again against a freshly initialized schema.
+
+```sh
+# Existing deployment, after reviewing/backing up the database:
+npx wrangler d1 migrations apply nzip --remote --config wrangler.local.jsonc
+```
+
+The migration adds nullable/default-off policy fields and does not change existing sites or vault
+behavior. The updated API/CLI supports these policies:
+
+| Field | Behavior |
+| --- | --- |
+| `description` | Purpose/audience metadata used by agents to choose the destination |
+| `defaultTtl` | Inherited retention for new sites; null inherits the global fallback |
+| `maxTtl` | Enforced maximum remaining lifetime in days; null means no cap |
+| `requirePassword` | Every site must remain password-protected |
+| `defaultPassword` | Write-only default visitor password, stored as a PBKDF2 verifier |
+| `hasDefaultPassword` | Read-only indication that new sites can inherit protection |
+
+Example configuration (create the password file privately; never commit it):
+
+```sh
+nzip vault add reviews --description "Private personal review pages and temporary plans" --default-ttl 7d --max-ttl 14d --require-password --default-password-file /secure/path/review-password
+nzip vault add demos --description "Non-sensitive demos intended for public viewing" --default-ttl 30d --max-ttl 90d
+```
+
+Agents can choose `reviews` for a private plan and omit TTL/password: publication inherits seven
+days and the configured protection. They do not need the shared visitor password. Sharing that
+password with intended readers remains an owner action. Explicit TTL/password changes cannot
+bypass `maxTtl` or `requirePassword`; enforcement exists in the API and D1 triggers, including
+revision, policy-patch, and revert paths.
+
+Omitting policy fields on a revision preserves the site's current expiry and password. Changing
+or removing a vault's default password affects **new sites only**; it does not rotate existing
+site passwords or revoke their unlock cookies. Tightening a maximum TTL or requiring passwords
+is rejected if existing sites conflict. Update those sites explicitly first. A vault's effective
+default TTL must also fit its maximum; unlimited retention cannot fit a finite cap.
+
+Use `--max-ttl none`, `--allow-unprotected`, and `--no-default-password` to explicitly clear the
+respective rules. Policies are not tenant isolation: the owner token can administer every vault;
+CLI/MCP `allowVaults` is an additional client-side restriction, not a scoped credential.
