@@ -34,6 +34,7 @@ export interface SiteRow {
   feedback: number;
   feedback_requested_at: number | null;
   feedback_submitted_at: number | null;
+  feedback_callback_url: string | null;
 }
 
 export interface VaultRow {
@@ -231,7 +232,8 @@ export function feedbackResetStatements(env: Env, address: number): D1PreparedSt
   return [
     env.DB.prepare("DELETE FROM site_feedback WHERE address = ?").bind(address),
     env.DB.prepare(
-      "UPDATE sites SET feedback_requested_at = NULL, feedback_submitted_at = NULL WHERE address = ?",
+      `UPDATE sites SET feedback_requested_at = NULL, feedback_submitted_at = NULL,
+         feedback_callback_url = NULL WHERE address = ?`,
     ).bind(address),
   ];
 }

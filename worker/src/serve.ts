@@ -254,6 +254,7 @@ async function serveSiteOrigin(
   env: Env,
   url: URL,
   addressStr: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const path = url.pathname;
   const address = parseAddress(addressStr);
@@ -286,7 +287,7 @@ async function serveSiteOrigin(
   }
 
   // Reserved feedback routes sit behind the password gate and shadow same-named files.
-  const feedback = await serveSiteFeedback(req, env, url, site);
+  const feedback = await serveSiteFeedback(req, env, url, site, ctx);
   if (feedback) return feedback;
 
   const manifestObj = await env.CONTENT.get(
@@ -389,9 +390,10 @@ export async function serve(
   req: Request,
   env: Env,
   url: URL,
-  siteAddress?: string,
+  siteAddress: string | undefined,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   return siteAddress === undefined
     ? await serveControlOrigin(env, url)
-    : await serveSiteOrigin(req, env, url, siteAddress);
+    : await serveSiteOrigin(req, env, url, siteAddress, ctx);
 }

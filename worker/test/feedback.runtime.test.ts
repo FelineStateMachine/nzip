@@ -1,7 +1,7 @@
 import { createExecutionContext, env, SELF, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSiteByAddress } from "../src/db.ts";
-import { handleFeedbackRequest } from "../src/feedback.ts";
+import { handleFeedbackRequest, serveSiteFeedback } from "../src/feedback.ts";
 
 const headers = { authorization: "Bearer runtime-test-token", "content-type": "application/json" };
 const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -275,6 +275,61 @@ describe("Site feedback", () => {
       `INSERT INTO site_feedback (address, item, text, seq, updated_at) VALUES (?, 'item-1', 'u', 1, 2)
        ON CONFLICT(address, item) DO UPDATE SET text = excluded.text`,
     ).bind(address).run();
+  });
+
+  it("fires a one-shot submit callback that never carries note text", async () => {
+    const address = await protectedSite();
+    const request = (body: unknown) => api(`sites/${address}/feedback/request`, body);
+    expect((await request({ callbackUrl: "http://hooks.example.com/t/abc" })).status).toBe(400);
+    expect((await request({ callbackUrl: "https://u:p@hooks.example.com/t" })).status).toBe(400);
+    expect((await request({ callbackUrl: "not a url" })).status).toBe(400);
+    const armed = await request({ callbackUrl: "https://hooks.example.com/t/abc" });
+    const armedText = await armed.text();
+    expect(JSON.parse(armedText)).toMatchObject({ callbackPending: true });
+    expect(armedText).not.toContain("hooks.example.com");
+
+    const calls: { url: string; body: string }[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), body: String(init?.body) });
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }) as typeof fetch;
+    try {
+      const site = await getSiteByAddress(env, parseInt(address, 16));
+      const submit = async () => {
+        const ctx = createExecutionContext();
+        const req = new Request(`https://${address}.demo.dev/__feedback`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: `https://${address}.demo.dev` },
+          body: JSON.stringify({ items: { intro: "private note text" }, submit: true }),
+        });
+        const response = await serveSiteFeedback(req, env, new URL(req.url), site!, ctx);
+        await waitOnExecutionContext(ctx);
+        return response!;
+      };
+      expect((await submit()).status).toBe(200);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url).toBe("https://hooks.example.com/t/abc");
+      expect(JSON.parse(calls[0].body)).toMatchObject({
+        event: "nzip.feedback.submitted",
+        address,
+        url: `https://${address}.demo.dev/`,
+        items: 1,
+      });
+      expect(calls[0].body).not.toContain("private note text");
+      await submit();
+      expect(calls).toHaveLength(1);
+    } finally {
+      globalThis.fetch = original;
+    }
+    const after = await (await api(`sites/${address}/feedback`, undefined, "GET")).json();
+    expect(after).toMatchObject({ callbackPending: false });
+
+    // A new audience disarms any pending callback.
+    await request({ callbackUrl: "https://hooks.example.com/t/def" });
+    await api(`sites/${address}`, { password: "another-password" }, "PATCH");
+    const reset = await (await api(`sites/${address}/feedback`, undefined, "GET")).json();
+    expect(reset).toMatchObject({ callbackPending: false });
   });
 
   it("deletes notes with their site so a reused address starts clean", async () => {

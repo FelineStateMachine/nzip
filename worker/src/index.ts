@@ -100,7 +100,7 @@ export default {
       if (!success) return finish(tooManyRequests());
     }
 
-    return finish(await serve(req, env, url, siteAddress ?? undefined));
+    return finish(await serve(req, env, url, siteAddress ?? undefined, ctx));
   },
 
   async scheduled(

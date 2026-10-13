@@ -120,25 +120,31 @@ export async function cmdSiteFeedback(
   raw: string | undefined,
   request: boolean,
   message: string | undefined,
+  callback?: string,
 ): Promise<void> {
   const api = new ApiClient(config);
   const target = await targetOrFail(
     raw,
     config,
     api,
-    "usage: nzip site feedback <target> [--request [--message TEXT]]",
+    "usage: nzip site feedback <target> [--request [--message TEXT] [--callback HTTPS_URL]]",
   );
-  if (message !== undefined && !request) fail("--message only applies with --request");
+  if ((message !== undefined || callback !== undefined) && !request) {
+    fail("--message and --callback only apply with --request");
+  }
   if (!request) return emitFeedback(await api.siteFeedback(target));
 
-  const { notification, ...feedback } = await api.requestFeedback(target, message);
+  const { notification, ...feedback } = await api.requestFeedback(target, message, callback);
   emit(() => {
     const delivery = notification === null
       ? dim("notifications are disabled on the server")
       : `notified ${notification.queuedDevices} device${
         notification.queuedDevices === 1 ? "" : "s"
       }`;
-    console.log(`${green("✓")} requested feedback on ${bold(feedback.address)}   ${delivery}`);
+    const armed = feedback.callbackPending ? `   ${dim("callback armed")}` : "";
+    console.log(
+      `${green("✓")} requested feedback on ${bold(feedback.address)}   ${delivery}${armed}`,
+    );
   }, { ok: true, ...feedback, notification });
 }
 

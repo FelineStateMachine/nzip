@@ -150,12 +150,26 @@ export class ApiClient {
     return this.request("GET", `/api/sites/${encodeURIComponent(target)}/feedback`);
   }
 
-  requestFeedback(target: string, message?: string): Promise<FeedbackRequestResponse> {
-    return this.request(
+  requestFeedback(
+    target: string,
+    message?: string,
+    callbackUrl?: string,
+  ): Promise<FeedbackRequestResponse> {
+    return this.request<FeedbackRequestResponse>(
       "POST",
       `/api/sites/${encodeURIComponent(target)}/feedback/request`,
-      JSON.stringify(message === undefined ? {} : { message }),
-    );
+      JSON.stringify({
+        ...(message === undefined ? {} : { message }),
+        ...(callbackUrl === undefined ? {} : { callbackUrl }),
+      }),
+    ).then((round) => {
+      if (callbackUrl !== undefined && round.callbackPending !== true) {
+        throw new Error(
+          "the server ignored callbackUrl; upgrade the nzip Worker to 0.12.0 or later",
+        );
+      }
+      return round;
+    });
   }
 
   deleteSite(target: string): Promise<{ ok: true; address: string }> {

@@ -122,6 +122,7 @@ Then run a review round:
 ```sh
 nzip site push ./plan reviews:plan --feedback      # the vault or --password supplies protection
 nzip site feedback reviews:plan --request --message "Plan v2 is ready"   # notifies your devices
+nzip site feedback reviews:plan --request --callback https://hooks.example/t   # POST once on submit
 nzip site feedback reviews:plan --json              # read notes once the reviewer submits
 ```
 

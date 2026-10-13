@@ -17,6 +17,63 @@ import { verifyPassword } from "./password.ts";
 
 const MAX_FEEDBACK_BODY_BYTES = 64 * 1024;
 const MAX_ITEMS_PER_SAVE = 100;
+const MAX_CALLBACK_URL = 2048;
+const CALLBACK_TIMEOUT_MS = 10_000;
+
+/** Accept only absolute HTTPS URLs without embedded credentials for submit callbacks. */
+function callbackUrlFrom(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_CALLBACK_URL) {
+    throw new ApiError(
+      400,
+      `callbackUrl must be an https URL of at most ${MAX_CALLBACK_URL} characters`,
+    );
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ApiError(400, "callbackUrl must be an absolute https URL");
+  }
+  if (url.protocol !== "https:" || url.username !== "" || url.password !== "") {
+    throw new ApiError(400, "callbackUrl must be an https URL without credentials");
+  }
+  return url.toString();
+}
+
+/**
+ * Tell whoever requested the round that it was submitted. Best effort with one retry; the
+ * payload carries only the site and timestamps, never note text, and the URL is never logged
+ * because callback URLs usually embed a bearer-like token.
+ */
+export async function deliverFeedbackCallback(
+  callbackUrl: string,
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  const body = JSON.stringify(payload);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await fetch(callbackUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json", "user-agent": "nzip-feedback-callback" },
+        body,
+        redirect: "manual",
+        signal: AbortSignal.timeout(CALLBACK_TIMEOUT_MS),
+      });
+      console.log({ event: "feedback.callback", status: response.status, attempt });
+      if (response.ok) return true;
+      if (response.status < 500 && response.status !== 429) return false;
+    } catch (error) {
+      console.log({
+        event: "feedback.callback_failed",
+        attempt,
+        error: error instanceof Error ? error.name : "error",
+      });
+    }
+    if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  return false;
+}
 
 /** Feedback is only ever served behind a password gate; reject any policy that would expose it. */
 export function enforceFeedbackPolicy(feedback: boolean, passwordHash: string | null): void {
@@ -79,6 +136,7 @@ async function feedbackState(env: Env, site: SiteRow): Promise<SiteFeedback> {
     seq: await currentSeq(env, site.address),
     requestedAt: site.feedback_requested_at,
     submittedAt: site.feedback_submitted_at,
+    callbackPending: site.feedback_callback_url !== null,
     items: await listFeedback(env, site.address),
   };
 }
@@ -106,10 +164,11 @@ export async function handleFeedbackRequest(
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       throw new ApiError(400, "request body must be an object");
     }
-    if (Object.keys(body).some((key) => key !== "message")) {
+    if (Object.keys(body).some((key) => key !== "message" && key !== "callbackUrl")) {
       throw new ApiError(400, "request contains unknown fields");
     }
   }
+  const callbackUrl = callbackUrlFrom(body.callbackUrl);
   if (!feedbackOpen(site)) {
     throw new ApiError(
       409,
@@ -126,9 +185,9 @@ export async function handleFeedbackRequest(
   });
   const now = Math.floor(Date.now() / 1000);
   await env.DB.prepare(
-    `UPDATE sites SET feedback_requested_at = ?, feedback_submitted_at = NULL
-     WHERE address = ?`,
-  ).bind(now, site.address).run();
+    `UPDATE sites SET feedback_requested_at = ?, feedback_submitted_at = NULL,
+       feedback_callback_url = ? WHERE address = ?`,
+  ).bind(now, callbackUrl, site.address).run();
   const queued = env.NOTIFY_ENABLED === "true"
     ? await queueNotification(env, ctx, notification)
     : null;
@@ -136,6 +195,7 @@ export async function handleFeedbackRequest(
     ...site,
     feedback_requested_at: now,
     feedback_submitted_at: null,
+    feedback_callback_url: callbackUrl,
   });
   return json<FeedbackRequestResponse>({ ...state, notification: queued });
 }
@@ -206,11 +266,12 @@ function parseSave(raw: unknown): { items: Map<string, string>; submit: boolean 
   return { items, submit: record.submit === true };
 }
 
+/** Save notes; on submit, returns the one-shot callback URL that this submit claimed, if any. */
 async function saveFeedback(
   req: Request,
   env: Env,
   site: SiteRow,
-): Promise<void> {
+): Promise<string | null> {
   const declared = Number(req.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > MAX_FEEDBACK_BODY_BYTES) {
     throw new ApiError(413, "request too large");
@@ -254,15 +315,23 @@ async function saveFeedback(
            text = excluded.text, seq = excluded.seq, updated_at = excluded.updated_at`,
       ).bind(site.address, item, value, seq, now)
   );
+  // Read and clear the callback in the same transaction so concurrent submits fire it once.
+  const claim = statements.length;
   if (submit) {
     statements.push(
-      env.DB.prepare("UPDATE sites SET feedback_submitted_at = ? WHERE address = ?")
-        .bind(now, site.address),
+      env.DB.prepare("SELECT feedback_callback_url FROM sites WHERE address = ?")
+        .bind(site.address),
+      env.DB.prepare(
+        "UPDATE sites SET feedback_submitted_at = ?, feedback_callback_url = NULL WHERE address = ?",
+      ).bind(now, site.address),
     );
   }
-  if (statements.length === 0) return;
+  if (statements.length === 0) return null;
   try {
-    await env.DB.batch(statements);
+    const results = await env.DB.batch(statements);
+    if (!submit) return null;
+    const row = results[claim].results[0] as { feedback_callback_url: string | null } | undefined;
+    return row?.feedback_callback_url ?? null;
   } catch (error) {
     // The cap trigger catches saves that raced past the check above.
     if (String(error).includes("feedback item limit reached")) {
@@ -281,6 +350,7 @@ export async function serveSiteFeedback(
   env: Env,
   url: URL,
   site: SiteRow,
+  ctx: ExecutionContext,
 ): Promise<Response | null> {
   if (url.pathname === "/__feedback.js") {
     if (req.method !== "GET" && req.method !== "HEAD") {
@@ -307,10 +377,22 @@ export async function serveSiteFeedback(
     if (!sameOriginWrite(req, url)) {
       return visitorJson({ error: "feedback must be sent as same-origin JSON" }, 403);
     }
-    await saveFeedback(req, env, site);
+    const callbackUrl = await saveFeedback(req, env, site);
     const fresh = await env.DB.prepare("SELECT * FROM sites WHERE address = ?")
       .bind(site.address).first<SiteRow>();
-    return visitorJson(await visitorState(env, fresh ?? site));
+    const state = await visitorState(env, fresh ?? site);
+    if (callbackUrl) {
+      const address = formatAddress(site.address);
+      ctx.waitUntil(deliverFeedbackCallback(callbackUrl, {
+        event: "nzip.feedback.submitted",
+        address,
+        url: siteUrl(env, address),
+        requestedAt: state.requestedAt,
+        submittedAt: state.submittedAt,
+        items: Object.keys(state.items).length,
+      }));
+    }
+    return visitorJson(state);
   } catch (error) {
     if (error instanceof ApiError) return visitorJson({ error: error.message }, error.status);
     throw error;

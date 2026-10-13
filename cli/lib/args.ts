@@ -28,6 +28,7 @@ export function parseCliArgs(argv: string[]) {
       "max-ttl",
       "default-password-file",
       "message",
+      "callback",
     ],
     boolean: [
       "yes",

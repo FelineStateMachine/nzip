@@ -35,7 +35,7 @@ export function parseSiteInvocation(rest: string[]): SiteInvocation {
       return { kind: "policy", target: first };
     case "feedback":
       if (second !== undefined) {
-        fail("usage: nzip site feedback <target> [--request [--message TEXT]]");
+        fail("usage: nzip site feedback <target> [--request [--message TEXT] [--callback URL]]");
       }
       return { kind: "feedback", target: first };
     case "update":
@@ -75,6 +75,7 @@ export async function cmdSiteGroup(
     feedback?: boolean;
     request: boolean;
     message?: string;
+    callback?: string;
   },
 ): Promise<void> {
   const invocation = parseSiteInvocation(rest);
@@ -110,6 +111,7 @@ export async function cmdSiteGroup(
         invocation.target,
         options.request,
         options.message,
+        options.callback,
       );
     case "ls":
       return await cmdLs(config, invocation.vault);

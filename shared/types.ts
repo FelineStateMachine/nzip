@@ -267,6 +267,8 @@ export interface SiteFeedback {
   requestedAt: number | null;
   /** Unix timestamp of the latest visitor submission, or `null` if none since the request. */
   submittedAt: number | null;
+  /** Whether a submit callback is armed for the current round. The URL itself is never returned. */
+  callbackPending: boolean;
   /** Saved notes, oldest first. */
   items: FeedbackItem[];
 }
@@ -278,6 +280,12 @@ export interface FeedbackRequestBody {
    * include secrets, private URLs, or sensitive personal data.
    */
   message?: string;
+  /**
+   * Optional HTTPS URL that receives one JSON POST when the reviewer next submits, such as a
+   * webhook bound to the requesting agent. The body has the site address, URL, timestamps and
+   * note count (`event: "nzip.feedback.submitted"`), never note text. A new request replaces it.
+   */
+  callbackUrl?: string;
 }
 
 /** Reply to a feedback request: the new round plus notification queue acceptance. */

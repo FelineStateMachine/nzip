@@ -104,5 +104,6 @@ export const feedback = {
   seq: z.number().int().nonnegative(),
   requestedAt: z.number().int().nullable(),
   submittedAt: z.number().int().nullable(),
+  callbackPending: z.boolean().optional(),
   items: z.array(feedbackItem),
 };

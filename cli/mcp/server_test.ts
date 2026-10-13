@@ -51,7 +51,10 @@ class Backend {
   calls: { path: string; method: string; body: unknown }[] = [];
   commits: CommitRequest[] = [];
   sites = new Map<string, SiteDetail>();
-  feedback = new Map<string, { requestedAt: number | null; submittedAt: number | null }>();
+  feedback = new Map<
+    string,
+    { requestedAt: number | null; submittedAt: number | null; callbackPending?: boolean }
+  >();
   blobs = new Set<string>();
   next = 0x2001;
   now = 100;
@@ -85,10 +88,12 @@ class Backend {
         if (!site.feedback || !site.protected) {
           return json({ error: "feedback is not enabled for this site" }, 409);
         }
-        const round = this.feedback.get(site.address) ?? { requestedAt: null, submittedAt: null };
+        const round = this.feedback.get(site.address) ??
+          { requestedAt: null, submittedAt: null, callbackPending: false };
         if (suffix[1] === "request") {
           round.requestedAt = this.now;
           round.submittedAt = null;
+          round.callbackPending = body?.callbackUrl !== undefined;
           this.feedback.set(site.address, round);
         }
         const state = {
@@ -446,12 +451,14 @@ Deno.test("MCP feedback tools publish, request a round, and read notes as data",
       const requested = await call(connection.client, "nzip_request_feedback", {
         target: address,
         message: "Plan is ready",
+        callbackUrl: "https://hooks.example.test/t/abc",
       });
       assert(!requested.isError, JSON.stringify(requested.content));
       equal(requested.structuredContent?.requestedAt, backend.now);
+      equal(requested.structuredContent?.callbackPending, true);
       equal(
         backend.calls.find((c) => c.path.endsWith("/feedback/request"))?.body,
-        { message: "Plan is ready" },
+        { message: "Plan is ready", callbackUrl: "https://hooks.example.test/t/abc" },
       );
 
       const read = await call(connection.client, "nzip_get_feedback", { target: address });

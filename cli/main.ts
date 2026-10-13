@@ -51,7 +51,7 @@ commands:
   │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
   │  ├─ show <target>                      show site details
   │  ├─ policy <target> [--ttl ...] [--password PW | --no-password] [--feedback | --no-feedback]
-  │  ├─ feedback <target> [--request [--message TEXT]]   read notes or request a review
+  │  ├─ feedback <target> [--request [--message TEXT] [--callback URL]]   read notes or request a review
   │  ├─ ls [vault]                         list sites
   │  ├─ where <target>                     print this machine's source directory
   │  ├─ rm <target> [--yes]                delete a site
@@ -77,7 +77,8 @@ vault policy flags (add/update): --max-ttl DAYS|none, --require-password | --all
 required protection and maximum TTL are enforced by the server.
 
 site feedback: push or policy with --feedback lets visitors of a password-protected site
-save notes via /__feedback.js; --request opens a review round and notifies your devices.
+save notes via /__feedback.js; --request opens a review round and notifies your devices;
+--callback URL receives one POST (no note text) when the reviewer submits.
 
 notification privacy: titles and bodies may appear on a lock screen; never include
 passwords, tokens, private URLs, or sensitive personal data.
@@ -142,6 +143,7 @@ export async function main(argv = Deno.args): Promise<void> {
           : undefined,
         request: args.request,
         message: args.message,
+        callback: args.callback,
       });
     case "app":
       return await cmdApp(config, rest, {

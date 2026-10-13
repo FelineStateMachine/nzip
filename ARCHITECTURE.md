@@ -111,6 +111,7 @@ sequenceDiagram
     W->>P: "Feedback requested" notification (link only)
     V->>W: GET site, unlock, load /__feedback.js
     V->>W: POST /__feedback {items, submit?}
+    W->>A: one-shot callback POST on submit (no note text)
     A->>W: GET /api/sites/{t}/feedback
 ```
 
@@ -124,7 +125,10 @@ sequenceDiagram
   against. Rows cascade with the site, so a reallocated address never inherits old notes.
 - **Review rounds.** An owner request stamps `feedback_requested_at`, clears
   `feedback_submitted_at`, and queues a notification through the normal outbox with a link-only
-  body. A visitor submit stamps `feedback_submitted_at`. Notes saved after the request belong to the
+  body. A request may arm a one-shot HTTPS `callbackUrl` (for example a webhook bound to the
+  requesting agent); the submit that claims it, inside the same transaction, POSTs the site,
+  timestamps, and note count, never note text, with one retry, and clears it. The URL is never
+  returned or logged. A visitor submit stamps `feedback_submitted_at`. Notes saved after the request belong to the
   current round; the helper script shows older notes as placeholders.
 - **Trust.** Note text is visitor input. Owner tooling returns it as data; agents must not treat it
   as instructions.

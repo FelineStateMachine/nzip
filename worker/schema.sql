@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS sites (
   feedback INTEGER NOT NULL DEFAULT 0 CHECK (feedback IN (0, 1)), -- visitor notes; needs a password
   feedback_requested_at INTEGER,   -- unix seconds of the latest owner feedback request
   feedback_submitted_at INTEGER,   -- unix seconds of the latest visitor submit since that request
+  feedback_callback_url TEXT,      -- one-shot HTTPS callback fired on the next submit, then cleared
   UNIQUE (vault_slot, alias)
 );
 CREATE INDEX IF NOT EXISTS idx_sites_expiry ON sites(expires_at) WHERE expires_at IS NOT NULL;
