@@ -16,7 +16,6 @@
  */
 // nzip — push HTML and get a tiny URL back.
 
-import { parseArgs } from "@std/cli/parse-args";
 import { VERSION } from "@nzip/shared";
 import { cmdAuth } from "./commands/auth.ts";
 import { cmdApp } from "./commands/app.ts";
@@ -25,6 +24,7 @@ import { cmdSiteGroup } from "./commands/site.ts";
 import { cmdStatus } from "./commands/sites.ts";
 import { cmdVault } from "./commands/vault.ts";
 import { requireConfig } from "./lib/config.ts";
+import { parseCliArgs } from "./lib/args.ts";
 import { fail, setJsonMode } from "./lib/fmt.ts";
 
 const HELP = `nzip — html share tool
@@ -91,51 +91,7 @@ passwords, tokens, private URLs, or sensitive personal data.
  * @throws If configuration, validation, or a command handler fails.
  */
 export async function main(argv = Deno.args): Promise<void> {
-  const args = parseArgs(argv, {
-    string: [
-      "ttl",
-      "to",
-      "slot",
-      "server",
-      "token",
-      "password",
-      "name",
-      "description",
-      "default-ttl",
-      "default-for",
-      "framework",
-      "output",
-      "build-task",
-      "title",
-      "open",
-      "tag",
-      "root",
-      "max-ttl",
-      "default-password-file",
-      "message",
-    ],
-    boolean: [
-      "yes",
-      "list",
-      "help",
-      "version",
-      "no-password",
-      "overwrite",
-      "json",
-      "no-description",
-      "all",
-      "no-default-for",
-      "new",
-      "require-password",
-      "allow-unprotected",
-      "no-default-password",
-      "feedback",
-      "no-feedback",
-      "request",
-    ],
-    alias: { h: "help", V: "version", y: "yes" },
-    collect: ["root"],
-  });
+  const args = parseCliArgs(argv);
   setJsonMode(args.json);
   const [command, ...rest] = args._.map(String);
 
