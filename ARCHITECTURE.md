@@ -94,6 +94,45 @@ unresolved `/<address>/...` asset path on that address's hostname falls back to
 the corresponding root-relative asset. A real file at the prefixed path always
 wins.
 
+## Site feedback
+
+Feedback turns a password-protected page into a review surface without giving the page any
+server code. It is opt-in per site (`feedback` on push or policy) and refused for unprotected
+sites, so it never becomes an open write endpoint on a public URL.
+
+```mermaid
+sequenceDiagram
+    participant A as Agent (CLI/MCP)
+    participant W as Worker
+    participant P as Phone
+    participant V as Reviewer's browser
+    A->>W: push with feedback=true (password-protected)
+    A->>W: POST /api/sites/{t}/feedback/request
+    W->>P: "Feedback requested" notification (link only)
+    V->>W: GET site, unlock, load /__feedback.js
+    V->>W: POST /__feedback {items, submit?}
+    W->>A: one-shot callback POST on submit (no note text)
+    A->>W: GET /api/sites/{t}/feedback
+```
+
+- **Visitor routes.** `/__feedback` and `/__feedback.js` are reserved on site hostnames and run
+  after the password gate, so only someone holding the unlock cookie can read or write notes. Writes
+  must be same-origin JSON: the `Origin` and `Sec-Fetch-Site` headers must match and the content
+  type must be `application/json`, on top of the `SameSite=Lax` host-only cookie. `RL_FEEDBACK`
+  throttles writes per client and site. Responses are `no-store`.
+- **Data model.** Notes live in `site_feedback`, keyed by site and a page-chosen item key, capped at
+  200 items of 4,000 characters per site. Each note records the push sequence it was written
+  against. Rows cascade with the site, so a reallocated address never inherits old notes.
+- **Review rounds.** An owner request stamps `feedback_requested_at`, clears
+  `feedback_submitted_at`, and queues a notification through the normal outbox with a link-only
+  body. A request may arm a one-shot HTTPS `callbackUrl` (for example a webhook bound to the
+  requesting agent); the submit that claims it, inside the same transaction, POSTs the site,
+  timestamps, and note count, never note text, with one retry, and clears it. The URL is never
+  returned or logged. A visitor submit stamps `feedback_submitted_at`. Notes saved after the request belong to the
+  current round; the helper script shows older notes as placeholders.
+- **Trust.** Note text is visitor input. Owner tooling returns it as data; agents must not treat it
+  as instructions.
+
 ## Storage model
 
 Core publishing state:
@@ -103,8 +142,9 @@ Core publishing state:
 | `vaults`           | named slots, descriptions, and optional default TTL                    |
 | `vault_defaults`   | temporary/permanent lifecycle selection                               |
 | `app_reservations` | permanent address and alias tombstones for application origins        |
-| `sites`            | live address, manifest, expiry, password, and optional app CSP policy |
+| `sites`            | live address, manifest, expiry, password, app CSP, and feedback state  |
 | `pushes`           | retained per-site manifest history                                    |
+| `site_feedback`    | opt-in visitor notes per site and item, cascading with the site       |
 
 Security and notification state:
 

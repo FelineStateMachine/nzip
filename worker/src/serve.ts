@@ -6,6 +6,7 @@ import { siteUrl } from "./env.ts";
 import { FAVICON_PNG } from "./favicon.ts";
 import { hasValidUnlockCookie, makeUnlockCookie, verifyPassword } from "./password.ts";
 import { notifyLandingPage } from "./notify_ui.ts";
+import { serveSiteFeedback } from "./feedback.ts";
 
 const GONE_PAGE = `<!doctype html><meta charset="utf-8"><title>expired — nzip</title>
 <style>body{background:#121110;color:#8a8172;font-family:ui-monospace,monospace;display:grid;place-items:center;height:100vh;margin:0}div{text-align:center}b{color:#ffb347;font-size:32px;display:block;margin-bottom:8px}</style>
@@ -253,6 +254,7 @@ async function serveSiteOrigin(
   env: Env,
   url: URL,
   addressStr: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const path = url.pathname;
   const address = parseAddress(addressStr);
@@ -283,6 +285,10 @@ async function serveSiteOrigin(
       securityHeaders,
     );
   }
+
+  // Reserved feedback routes sit behind the password gate and shadow same-named files.
+  const feedback = await serveSiteFeedback(req, env, url, site, ctx);
+  if (feedback) return feedback;
 
   const manifestObj = await env.CONTENT.get(
     `manifest/${site.current_manifest}`,
@@ -384,9 +390,10 @@ export async function serve(
   req: Request,
   env: Env,
   url: URL,
-  siteAddress?: string,
+  siteAddress: string | undefined,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   return siteAddress === undefined
     ? await serveControlOrigin(env, url)
-    : await serveSiteOrigin(req, env, url, siteAddress);
+    : await serveSiteOrigin(req, env, url, siteAddress, ctx);
 }

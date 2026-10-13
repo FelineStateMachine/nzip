@@ -16,7 +16,6 @@
  */
 // nzip — push HTML and get a tiny URL back.
 
-import { parseArgs } from "@std/cli/parse-args";
 import { VERSION } from "@nzip/shared";
 import { cmdAuth } from "./commands/auth.ts";
 import { cmdApp } from "./commands/app.ts";
@@ -25,6 +24,7 @@ import { cmdSiteGroup } from "./commands/site.ts";
 import { cmdStatus } from "./commands/sites.ts";
 import { cmdVault } from "./commands/vault.ts";
 import { requireConfig } from "./lib/config.ts";
+import { parseCliArgs } from "./lib/args.ts";
 import { fail, setJsonMode } from "./lib/fmt.ts";
 
 const HELP = `nzip — html share tool
@@ -50,7 +50,8 @@ commands:
   │  ├─ push <dir|file> [target] [--new]      publish content; reuse source by default
   │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
   │  ├─ show <target>                      show site details
-  │  ├─ policy <target> [--ttl ...] [--password PW | --no-password]
+  │  ├─ policy <target> [--ttl ...] [--password PW | --no-password] [--feedback | --no-feedback]
+  │  ├─ feedback <target> [--request [--message TEXT] [--callback URL]]   read notes or request a review
   │  ├─ ls [vault]                         list sites
   │  ├─ where <target>                     print this machine's source directory
   │  ├─ rm <target> [--yes]                delete a site
@@ -75,6 +76,10 @@ vault policy flags (add/update): --max-ttl DAYS|none, --require-password | --all
 --default-password-file FILE | --no-default-password. New sites inherit vault defaults;
 required protection and maximum TTL are enforced by the server.
 
+site feedback: push or policy with --feedback lets visitors of a password-protected site
+save notes via /__feedback.js; --request opens a review round and notifies your devices;
+--callback URL receives one POST (no note text) when the reviewer submits.
+
 notification privacy: titles and bodies may appear on a lock screen; never include
 passwords, tokens, private URLs, or sensitive personal data.
 `;
@@ -87,47 +92,7 @@ passwords, tokens, private URLs, or sensitive personal data.
  * @throws If configuration, validation, or a command handler fails.
  */
 export async function main(argv = Deno.args): Promise<void> {
-  const args = parseArgs(argv, {
-    string: [
-      "ttl",
-      "to",
-      "slot",
-      "server",
-      "token",
-      "password",
-      "name",
-      "description",
-      "default-ttl",
-      "default-for",
-      "framework",
-      "output",
-      "build-task",
-      "title",
-      "open",
-      "tag",
-      "root",
-      "max-ttl",
-      "default-password-file",
-    ],
-    boolean: [
-      "yes",
-      "list",
-      "help",
-      "version",
-      "no-password",
-      "overwrite",
-      "json",
-      "no-description",
-      "all",
-      "no-default-for",
-      "new",
-      "require-password",
-      "allow-unprotected",
-      "no-default-password",
-    ],
-    alias: { h: "help", V: "version", y: "yes" },
-    collect: ["root"],
-  });
+  const args = parseCliArgs(argv);
   setJsonMode(args.json);
   const [command, ...rest] = args._.map(String);
 
@@ -169,6 +134,16 @@ export async function main(argv = Deno.args): Promise<void> {
         yes: args.yes,
         toSeq,
         list: args.list,
+        feedback: args.feedback && args["no-feedback"]
+          ? fail("choose either --feedback or --no-feedback, not both")
+          : args.feedback
+          ? true
+          : args["no-feedback"]
+          ? false
+          : undefined,
+        request: args.request,
+        message: args.message,
+        callback: args.callback,
       });
     case "app":
       return await cmdApp(config, rest, {

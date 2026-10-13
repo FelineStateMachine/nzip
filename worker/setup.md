@@ -328,6 +328,20 @@ Local development and test commands live in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 
+## Site feedback migration
+
+Migration `0009_site_feedback.sql` adds the opt-in feedback columns to `sites` and the
+`site_feedback` table; `0010_feedback_callback.sql` adds the one-shot submit callback column. Apply it to existing deployments before running a Worker that serves
+`/__feedback`; fresh installations get the same schema from `schema.sql`. The Worker also needs the
+`RL_FEEDBACK` rate-limit binding from `wrangler.jsonc` in any local deployment config.
+
+```sh
+npx wrangler d1 migrations apply nzip --remote --config wrangler.local.jsonc
+```
+
+Existing sites keep feedback off. Nothing is exposed until an owner enables it on a
+password-protected site.
+
 ## Vault purpose and policy
 
 Vaults partition sites by purpose, audience, retention, and protection. Give each vault a clear

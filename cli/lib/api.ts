@@ -5,6 +5,7 @@ import type {
   AppReservationInfo,
   CommitRequest,
   CommitResponse,
+  FeedbackRequestResponse,
   Manifest,
   NotifyApprovalPreview,
   NotifyApprovalRequest,
@@ -14,6 +15,7 @@ import type {
   NotifyResponse,
   PrepareResponse,
   SiteDetail,
+  SiteFeedback,
   SiteInfo,
   SourceResponse,
   StatusResponse,
@@ -128,13 +130,46 @@ export class ApiClient {
 
   patchSite(
     target: string,
-    patch: { ttl?: number | "forever"; password?: string | null },
+    patch: { ttl?: number | "forever"; password?: string | null; feedback?: boolean },
   ): Promise<SiteDetail> {
-    return this.request(
+    return this.request<SiteDetail>(
       "PATCH",
       `/api/sites/${encodeURIComponent(target)}`,
       JSON.stringify(patch),
-    );
+    ).then((site) => {
+      if (patch.feedback !== undefined && site.feedback !== patch.feedback) {
+        throw new Error(
+          `the server ignored feedback=${patch.feedback}; upgrade the nzip Worker to 0.12.0 or later`,
+        );
+      }
+      return site;
+    });
+  }
+
+  siteFeedback(target: string): Promise<SiteFeedback> {
+    return this.request("GET", `/api/sites/${encodeURIComponent(target)}/feedback`);
+  }
+
+  requestFeedback(
+    target: string,
+    message?: string,
+    callbackUrl?: string,
+  ): Promise<FeedbackRequestResponse> {
+    return this.request<FeedbackRequestResponse>(
+      "POST",
+      `/api/sites/${encodeURIComponent(target)}/feedback/request`,
+      JSON.stringify({
+        ...(message === undefined ? {} : { message }),
+        ...(callbackUrl === undefined ? {} : { callbackUrl }),
+      }),
+    ).then((round) => {
+      if (callbackUrl !== undefined && round.callbackPending !== true) {
+        throw new Error(
+          "the server ignored callbackUrl; upgrade the nzip Worker to 0.12.0 or later",
+        );
+      }
+      return round;
+    });
   }
 
   deleteSite(target: string): Promise<{ ok: true; address: string }> {

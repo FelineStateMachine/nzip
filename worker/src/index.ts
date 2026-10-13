@@ -71,7 +71,9 @@ export default {
     const siteUnlock = siteAddress !== null && req.method === "POST" &&
       url.pathname === "/__unlock";
     const isUnlock = legacyUnlock || siteUnlock;
-    if (req.method !== "GET" && req.method !== "HEAD" && !isUnlock) {
+    const feedbackWrite = siteAddress !== null && req.method === "POST" &&
+      url.pathname === "/__feedback";
+    if (req.method !== "GET" && req.method !== "HEAD" && !isUnlock && !feedbackWrite) {
       return finish(err("method not allowed", 405));
     }
 
@@ -85,6 +87,11 @@ export default {
         key: `${ip}:${address}`,
       });
       if (!success) return finish(tooManyRequests());
+    } else if (feedbackWrite) {
+      const { success } = await env.RL_FEEDBACK.limit({
+        key: `${ip}:${siteAddress}`,
+      });
+      if (!success) return finish(tooManyRequests());
     } else if (
       (controlOrigin && /^\/[0-9a-f]{4}\/?$/.test(url.pathname)) ||
       (siteAddress !== null && url.pathname === "/")
@@ -93,7 +100,7 @@ export default {
       if (!success) return finish(tooManyRequests());
     }
 
-    return finish(await serve(req, env, url, siteAddress ?? undefined));
+    return finish(await serve(req, env, url, siteAddress ?? undefined, ctx));
   },
 
   async scheduled(
