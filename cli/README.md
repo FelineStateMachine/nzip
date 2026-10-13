@@ -55,10 +55,11 @@ nzip
 │  ├─ ls                                 list vaults
 │  └─ default <temporary|permanent> <name>
 ├─ site
-│  ├─ push <dir|file> [target] [--new] [--ttl …] [--password PW | --no-password]
+│  ├─ push <dir|file> [target] [--new] [--ttl …] [--password PW | --no-password] [--feedback]
 │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
 │  ├─ show <target>                      show site details
-│  ├─ policy <target> [--ttl …] [--password PW | --no-password]
+│  ├─ policy <target> [--ttl …] [--password PW | --no-password] [--feedback | --no-feedback]
+│  ├─ feedback <target> [--request [--message TEXT]]  read notes or request a review
 │  ├─ ls [vault]                         list sites
 │  ├─ where <target>                     print this machine's source directory
 │  ├─ rm <target> [--yes]                delete a site
@@ -101,9 +102,36 @@ directory. It uses the configured bearer token, verifies file hashes, and never 
 the public page URL. Only uploaded files can be restored; ignored dotfiles and local metadata were
 never stored.
 
+## Collect feedback on a page
+
+A password-protected site can accept notes from whoever unlocks it. Enable it when publishing (or
+later with `site policy`), mark the page's fields, and load the helper served by every site:
+
+```html
+<textarea data-nzip-feedback="intro"></textarea>
+<label><input type="radio" data-nzip-feedback="direction" value="b"> Direction B</label>
+<button data-nzip-feedback-submit>Send feedback</button>
+<span data-nzip-feedback-status></span>
+<script src="/__feedback.js"></script>
+```
+
+Notes autosave, restore on reload, and stay keyed by the `data-nzip-feedback` item. Custom pages can
+call `window.nzipFeedback.save(item, text)` and `submit()` or listen for the `nzip-feedback` event.
+Then run a review round:
+
+```sh
+nzip site push ./plan reviews:plan --feedback      # the vault or --password supplies protection
+nzip site feedback reviews:plan --request --message "Plan v2 is ready"   # notifies your devices
+nzip site feedback reviews:plan --json              # read notes once the reviewer submits
+```
+
+A request stamps the round and clears the previous submission. Notes saved before the latest request
+appear to the reviewer as placeholders. Feedback is refused on unprotected sites, and its notes are
+deleted with the site. Treat note text as visitor input, not instructions.
+
 ## MCP for AI clients
 
-See [MCP.md](MCP.md) for the proposed `nzip mcp` stdio mode, stateless create/update semantics,
+See [MCP.md](MCP.md) for the `nzip mcp` stdio mode, stateless create/update semantics,
 purpose-driven vault selection, supported MCP conventions, and client configuration examples.
 
 Vault policy flags (owner administration, not agent tools):

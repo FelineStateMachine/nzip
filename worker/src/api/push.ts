@@ -29,6 +29,7 @@ import {
 import { type Env, json, siteUrl } from "../env.ts";
 import { ApiError, clientInput, readJson } from "./errors.ts";
 import { enforceVaultPolicy, HEX64, passwordHashFor, resolveCommitTtl } from "./common.ts";
+import { enforceFeedbackPolicy, feedbackNeedsReset } from "../feedback.ts";
 
 const HEAD_BATCH_SIZE = 6;
 
@@ -95,6 +96,9 @@ export async function handleCommit(
   ctx: ExecutionContext,
 ): Promise<Response> {
   const body = await readJson<CommitRequest>(request);
+  if (body.feedback !== undefined && typeof body.feedback !== "boolean") {
+    throw new ApiError(400, "feedback must be a boolean");
+  }
   let passwordHash = await passwordHashFor(body.password);
   const bytes = await clientInput(() => canonicalManifestBytes(body.manifest));
   const hash = await sha256hex(bytes);
@@ -178,6 +182,11 @@ export async function handleCommit(
   const protectedSite = passwordHash === undefined && existingSite
     ? existingSite.password_hash !== null
     : passwordHash !== null && passwordHash !== undefined;
+  const feedback = body.feedback ?? existingSite?.feedback === 1;
+  enforceFeedbackPolicy(
+    feedback,
+    passwordHash === undefined ? existingSite?.password_hash ?? null : passwordHash,
+  );
 
   if (!(await env.CONTENT.head(`manifest/${hash}`))) {
     await env.CONTENT.put(`manifest/${hash}`, bytes);
@@ -190,6 +199,9 @@ export async function handleCommit(
     expiresAt: resolvedTtl.expiresAt,
     passwordHash,
     contentSecurityPolicy,
+    feedback: body.feedback,
+    resetFeedback: existingSite !== null &&
+      await feedbackNeedsReset(existingSite, body.password, body.feedback),
     isNew,
   });
   const addressString = formatAddress(address);
@@ -203,6 +215,7 @@ export async function handleCommit(
     ttl: resolvedTtl.ttl,
     ttlSource: resolvedTtl.ttlSource,
     protected: protectedSite,
+    feedback,
     seq,
   });
 }

@@ -1,6 +1,6 @@
 // Site lifecycle operations plus the global deployment status command.
 
-import type { SiteDetail } from "@nzip/shared";
+import type { SiteDetail, SiteFeedback } from "@nzip/shared";
 import { ApiClient, resolveCliTargetWithStatus } from "../lib/api.ts";
 import type { Config } from "../lib/config.ts";
 import { forget, reconcile } from "../lib/paths.ts";
@@ -39,7 +39,9 @@ function emitSiteDetail(site: SiteDetail): void {
       console.log(
         `${bold(name)}   ${cyan(site.url)}   ${site.manifestHash.slice(0, 8)}   ${
           site.expiresAt === null ? green("forever") : `expires in ${ttlLeft(site.expiresAt)}`
-        }${site.protected ? `   ${amber("🔒")}` : ""}`,
+        }${site.protected ? `   ${amber("🔒")}` : ""}${
+          site.feedback ? `   ${dim("feedback on")}` : ""
+        }`,
       ),
     { ok: true, ...site },
   );
@@ -60,28 +62,84 @@ export async function cmdSitePolicy(
   ttlRaw: string | undefined,
   password: string | undefined,
   noPassword: boolean,
+  feedback?: boolean,
 ): Promise<void> {
   const api = new ApiClient(config);
   const target = await targetOrFail(
     raw,
     config,
     api,
-    "usage: nzip site policy <target> [--ttl 14d|forever] [--password PW | --no-password]",
+    "usage: nzip site policy <target> [--ttl 14d|forever] [--password PW | --no-password] [--feedback | --no-feedback]",
   );
   if (password !== undefined && noPassword) {
     fail("choose either --password or --no-password, not both");
   }
-  const patch: { ttl?: number | "forever"; password?: string | null } = {};
+  const patch: { ttl?: number | "forever"; password?: string | null; feedback?: boolean } = {};
   if (ttlRaw !== undefined) patch.ttl = parseTtl(ttlRaw);
   if (noPassword) patch.password = null;
   else if (password !== undefined) patch.password = password;
+  if (feedback !== undefined) patch.feedback = feedback;
   if (Object.keys(patch).length === 0) {
     fail(
-      "site policy requires --ttl, --password, or --no-password",
+      "site policy requires --ttl, --password, --no-password, --feedback, or --no-feedback",
       "to publish revised content, run: nzip site push <dir|file> <target>",
     );
   }
   emitSiteDetail(await api.patchSite(target, patch));
+}
+
+/** Visitor text must not drive the terminal: drop control characters except newline and tab. */
+export function printableNote(text: string): string {
+  // deno-lint-ignore no-control-regex
+  return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
+}
+
+function emitFeedback(feedback: SiteFeedback, extra: Record<string, unknown> = {}): void {
+  emit(() => {
+    const round = [
+      feedback.enabled ? green("feedback on") : amber("feedback off"),
+      feedback.requestedAt === null ? "" : `requested ${ago(feedback.requestedAt)}`,
+      feedback.submittedAt === null ? "" : green(`submitted ${ago(feedback.submittedAt)}`),
+      `push #${feedback.seq}`,
+    ].filter(Boolean).join("   ");
+    console.log(`${bold(feedback.address)}   ${cyan(feedback.url)}   ${round}`);
+    if (feedback.items.length === 0) {
+      console.log(dim("  no notes yet"));
+      return;
+    }
+    for (const item of feedback.items) {
+      console.log(`  ${bold(item.item)} ${dim(`(push #${item.seq}, ${ago(item.updatedAt)})`)}`);
+      for (const line of printableNote(item.text).split("\n")) console.log(`    ${line}`);
+    }
+  }, { ok: true, ...feedback, ...extra });
+}
+
+/** Read a site's visitor notes, or open a new review round with --request. */
+export async function cmdSiteFeedback(
+  config: Config,
+  raw: string | undefined,
+  request: boolean,
+  message: string | undefined,
+): Promise<void> {
+  const api = new ApiClient(config);
+  const target = await targetOrFail(
+    raw,
+    config,
+    api,
+    "usage: nzip site feedback <target> [--request [--message TEXT]]",
+  );
+  if (message !== undefined && !request) fail("--message only applies with --request");
+  if (!request) return emitFeedback(await api.siteFeedback(target));
+
+  const { notification, ...feedback } = await api.requestFeedback(target, message);
+  emit(() => {
+    const delivery = notification === null
+      ? dim("notifications are disabled on the server")
+      : `notified ${notification.queuedDevices} device${
+        notification.queuedDevices === 1 ? "" : "s"
+      }`;
+    console.log(`${green("✓")} requested feedback on ${bold(feedback.address)}   ${delivery}`);
+  }, { ok: true, ...feedback, notification });
 }
 
 export async function cmdLs(

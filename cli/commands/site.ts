@@ -2,7 +2,7 @@ import type { Config } from "../lib/config.ts";
 import { fail } from "../lib/fmt.ts";
 import { cmdCp } from "./cp.ts";
 import { cmdPush } from "./push.ts";
-import { cmdLs, cmdRevert, cmdRm, cmdSitePolicy, cmdSiteShow } from "./sites.ts";
+import { cmdLs, cmdRevert, cmdRm, cmdSiteFeedback, cmdSitePolicy, cmdSiteShow } from "./sites.ts";
 import { cmdWhere } from "./where.ts";
 
 export type SiteInvocation =
@@ -10,6 +10,7 @@ export type SiteInvocation =
   | { kind: "cp"; target?: string; dir?: string }
   | { kind: "show"; target?: string }
   | { kind: "policy"; target?: string }
+  | { kind: "feedback"; target?: string }
   | { kind: "ls"; vault?: string }
   | { kind: "where"; target?: string }
   | { kind: "rm"; target?: string }
@@ -17,7 +18,9 @@ export type SiteInvocation =
 
 export function parseSiteInvocation(rest: string[]): SiteInvocation {
   const [action, first, second, ...extra] = rest;
-  if (!action) fail("usage: nzip site <push|cp|show|policy|ls|where|rm|revert> ...");
+  if (!action) {
+    fail("usage: nzip site <push|cp|show|policy|feedback|ls|where|rm|revert> ...");
+  }
   if (extra.length > 0) fail(`too many arguments for nzip site ${action}`);
   switch (action) {
     case "push":
@@ -30,6 +33,11 @@ export function parseSiteInvocation(rest: string[]): SiteInvocation {
     case "policy":
       if (second !== undefined) fail("usage: nzip site policy <target> [options]");
       return { kind: "policy", target: first };
+    case "feedback":
+      if (second !== undefined) {
+        fail("usage: nzip site feedback <target> [--request [--message TEXT]]");
+      }
+      return { kind: "feedback", target: first };
     case "update":
       return fail(
         "site update was replaced by site policy",
@@ -64,6 +72,9 @@ export async function cmdSiteGroup(
     yes: boolean;
     toSeq?: number;
     list: boolean;
+    feedback?: boolean;
+    request: boolean;
+    message?: string;
   },
 ): Promise<void> {
   const invocation = parseSiteInvocation(rest);
@@ -77,6 +88,8 @@ export async function cmdSiteGroup(
         options.password,
         options.noPassword,
         options.newSite,
+        undefined,
+        options.feedback,
       );
     case "cp":
       return await cmdCp(config, invocation.target, invocation.dir, options.overwrite);
@@ -89,6 +102,14 @@ export async function cmdSiteGroup(
         options.ttl,
         options.password,
         options.noPassword,
+        options.feedback,
+      );
+    case "feedback":
+      return await cmdSiteFeedback(
+        config,
+        invocation.target,
+        options.request,
+        options.message,
       );
     case "ls":
       return await cmdLs(config, invocation.vault);

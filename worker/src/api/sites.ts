@@ -3,6 +3,7 @@ import type { PatchSiteRequest, RevertRequest, SourceResponse } from "../../../s
 import { purgeSiteCache } from "../cache.ts";
 import {
   commitSite,
+  feedbackResetStatements,
   getSiteByAddress,
   getVaultByName,
   getVaultBySlot,
@@ -23,6 +24,12 @@ import {
   ttlToExpiry,
 } from "./common.ts";
 import { ApiError, readJson } from "./errors.ts";
+import {
+  enforceFeedbackPolicy,
+  feedbackNeedsReset,
+  handleFeedbackGet,
+  handleFeedbackRequest,
+} from "../feedback.ts";
 
 export async function handleSiteList(url: URL, env: Env): Promise<Response> {
   const vaultName = url.searchParams.get("vault");
@@ -75,6 +82,15 @@ export async function handleSite(
   ) {
     return await handleRevert(request, env, site, ctx);
   }
+  if (parts.length === 4 && parts[3] === "feedback" && request.method === "GET") {
+    return await handleFeedbackGet(env, site);
+  }
+  if (
+    parts.length === 5 && parts[3] === "feedback" && parts[4] === "request" &&
+    request.method === "POST"
+  ) {
+    return await handleFeedbackRequest(request, env, site, ctx);
+  }
   throw new ApiError(404, "not found");
 }
 
@@ -105,15 +121,20 @@ async function handlePatch(
   ctx: ExecutionContext,
 ): Promise<Response> {
   const body = await readJson<PatchSiteRequest>(request);
+  if (body.feedback !== undefined && typeof body.feedback !== "boolean") {
+    throw new ApiError(400, "feedback must be a boolean");
+  }
   const expiresAt = body.ttl === undefined ? undefined : ttlToExpiry(body.ttl);
   const passwordHash = await passwordHashFor(body.password);
   const vault = await getVaultBySlot(env, site.vault_slot);
   if (!vault) throw new ApiError(404, "vault not found");
+  const effectivePassword = passwordHash === undefined ? site.password_hash : passwordHash;
   enforceVaultPolicy(
     vault,
     expiresAt === undefined ? site.expires_at : expiresAt,
-    passwordHash === undefined ? site.password_hash : passwordHash,
+    effectivePassword,
   );
+  enforceFeedbackPolicy(body.feedback ?? site.feedback === 1, effectivePassword);
   const updates: string[] = [];
   const values: (string | number | null)[] = [];
   if (expiresAt !== undefined) {
@@ -124,13 +145,18 @@ async function handlePatch(
     updates.push("password_hash = ?", "auth_version = auth_version + 1");
     values.push(passwordHash);
   }
+  if (body.feedback !== undefined) {
+    updates.push("feedback = ?");
+    values.push(body.feedback ? 1 : 0);
+  }
   if (updates.length > 0) {
     updates.push("updated_at = ?");
     values.push(Math.floor(Date.now() / 1000), site.address);
-    await env.DB.prepare(
-      `UPDATE sites SET ${updates.join(", ")} WHERE address = ?`,
-    )
-      .bind(...values).run();
+    const reset = await feedbackNeedsReset(site, body.password, body.feedback);
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE sites SET ${updates.join(", ")} WHERE address = ?`).bind(...values),
+      ...(reset ? feedbackResetStatements(env, site.address) : []),
+    ]);
   }
   const updated = await getSiteByAddress(env, site.address);
   if (!updated) throw new ApiError(404, "site not found");
@@ -184,6 +210,7 @@ async function handleRevert(
     ttl: resolvedTtl.ttl,
     ttlSource: resolvedTtl.ttlSource,
     protected: site.password_hash !== null,
+    feedback: site.feedback === 1,
     revertedTo: target.seq,
     seq,
   });

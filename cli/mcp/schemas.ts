@@ -26,6 +26,7 @@ export const site = z.object({
   expiresAt: timestamp.nullable(),
   url: z.string().url(),
   protected: z.boolean(),
+  feedback: z.boolean().optional(),
 });
 export const detail = site.extend({
   history: z.array(z.object({
@@ -58,6 +59,7 @@ export const publishOutput = z.object({
   ttl: z.union([z.number().nonnegative(), z.literal("forever")]),
   ttlSource: z.enum(["explicit", "existing-site", "vault", "global"]),
   protected: z.boolean(),
+  feedback: z.boolean().optional(),
   seq: z.number().int().positive(),
   files: z.number().int().nonnegative(),
   newBlobs: z.number().int().nonnegative(),
@@ -84,4 +86,23 @@ export const publishInput = z.object({
   password: z.string().min(4).max(256).nullable().optional().describe(
     "Omit to preserve protection; a string sets it; null explicitly removes it. Never put in notifications.",
   ),
+  feedback: z.boolean().optional().describe(
+    "true lets visitors who unlocked this password-protected site save notes through /__feedback.js; omit to preserve.",
+  ),
 }).strict();
+
+export const feedbackItem = z.object({
+  item: z.string(),
+  text: z.string(),
+  seq: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+});
+export const feedback = {
+  address,
+  url: z.string().url(),
+  enabled: z.boolean(),
+  seq: z.number().int().nonnegative(),
+  requestedAt: z.number().int().nullable(),
+  submittedAt: z.number().int().nullable(),
+  items: z.array(feedbackItem),
+};

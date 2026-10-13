@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS sites (
   password_hash TEXT,              -- PBKDF2 password verifier; NULL = public
   content_security_policy TEXT,    -- app build CSP mirrored as a response header
   auth_version INTEGER NOT NULL DEFAULT 1, -- increment to revoke unlock cookies
+  feedback INTEGER NOT NULL DEFAULT 0 CHECK (feedback IN (0, 1)), -- visitor notes; needs a password
+  feedback_requested_at INTEGER,   -- unix seconds of the latest owner feedback request
+  feedback_submitted_at INTEGER,   -- unix seconds of the latest visitor submit since that request
   UNIQUE (vault_slot, alias)
 );
 CREATE INDEX IF NOT EXISTS idx_sites_expiry ON sites(expires_at) WHERE expires_at IS NOT NULL;
@@ -59,6 +62,17 @@ CREATE TABLE IF NOT EXISTS pushes (
   pushed_at INTEGER NOT NULL,
   note TEXT,
   PRIMARY KEY (address, seq)
+);
+
+-- Visitor notes keyed by a page-chosen item. Cascades with the site so a reused
+-- address never inherits another site's feedback.
+CREATE TABLE IF NOT EXISTS site_feedback (
+  address INTEGER NOT NULL REFERENCES sites(address) ON DELETE CASCADE,
+  item TEXT NOT NULL,
+  text TEXT NOT NULL,
+  seq INTEGER NOT NULL,            -- site push sequence current when the note was saved
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (address, item)
 );
 
 CREATE TABLE IF NOT EXISTS security_probes (
@@ -217,4 +231,25 @@ BEFORE UPDATE ON vaults BEGIN
     WHERE NEW.max_ttl IS NOT NULL
       AND EXISTS (SELECT 1 FROM sites WHERE vault_slot = OLD.slot AND
         (expires_at IS NULL OR expires_at > unixepoch() + round(NEW.max_ttl * 86400)));
+END;
+
+-- Defense in depth for concurrent writers. Bodies use SELECT RAISE(...) WHERE ... (no CASE/END)
+-- so D1's remote statement splitter keeps each trigger whole. Keep BEGIN uppercase and LF endings.
+CREATE TRIGGER IF NOT EXISTS sites_feedback_policy_insert
+BEFORE INSERT ON sites BEGIN
+  SELECT RAISE(ABORT, 'feedback requires password protection')
+    WHERE NEW.feedback = 1 AND NEW.password_hash IS NULL;
+END;
+
+CREATE TRIGGER IF NOT EXISTS sites_feedback_policy_update
+BEFORE UPDATE ON sites BEGIN
+  SELECT RAISE(ABORT, 'feedback requires password protection')
+    WHERE NEW.feedback = 1 AND NEW.password_hash IS NULL;
+END;
+
+CREATE TRIGGER IF NOT EXISTS site_feedback_item_cap
+BEFORE INSERT ON site_feedback BEGIN
+  SELECT RAISE(ABORT, 'feedback item limit reached')
+    WHERE (SELECT COUNT(*) FROM site_feedback WHERE address = NEW.address) >= 200
+      AND NOT EXISTS (SELECT 1 FROM site_feedback WHERE address = NEW.address AND item = NEW.item);
 END;

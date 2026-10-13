@@ -15,3 +15,15 @@ export const MAX_BLOB_BYTES = 50 * 1024 * 1024;
 
 /** Fallback lifetime in days for new sites whose vault does not define one. */
 export const GLOBAL_DEFAULT_TTL = 14;
+
+/** Maximum stored feedback items per site. Pages key notes by item, such as one per section. */
+export const MAX_FEEDBACK_ITEMS = 200;
+
+/** Maximum characters in one feedback note. */
+export const MAX_FEEDBACK_TEXT = 4000;
+
+/**
+ * Feedback item keys: short, URL-safe identifiers chosen by the page, such as
+ * `intro`, `option-3`, or `run:eval-2`.
+ */
+export const FEEDBACK_ITEM_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;

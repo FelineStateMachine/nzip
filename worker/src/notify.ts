@@ -124,6 +124,18 @@ export async function handleNotifySend(
     throw new ApiError(503, "notifications are disabled");
   }
   const input = validateNotifyRequest(await readJson(request));
+  return json(await queueNotification(env, ctx, input), 202);
+}
+
+/**
+ * Persist a validated event and its deliveries in the durable outbox, then start draining.
+ * Callers must check `NOTIFY_ENABLED` and validate the request first.
+ */
+export async function queueNotification(
+  env: Env,
+  ctx: ExecutionContext,
+  input: NotifyRequest,
+): Promise<NotifyResponse> {
   const now = Math.floor(Date.now() / 1000);
   let manifestHash: string | null = null;
   if (input.path && input.path !== "/") {
@@ -176,7 +188,7 @@ export async function handleNotifySend(
     eventId,
     queuedDevices: response.queuedDevices,
   });
-  return json(response, 202);
+  return response;
 }
 
 function classify(status: number): "sent" | "disabled" | "retry" | "failed" {

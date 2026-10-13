@@ -94,3 +94,26 @@ Deno.test("progress observer failures do not misreport an accepted commit", asyn
   );
   assert(result.address === "2001");
 });
+
+Deno.test("publish fails loudly when an older server ignores the feedback flag", async () => {
+  const bundle = {
+    manifest: { v: 1 as const, files: {} },
+    blobs: new Map<string, Uint8Array>(),
+    totalBytes: 0,
+    warnings: [],
+  };
+  const api = {
+    prepare: () => Promise.resolve({ manifestHash: "a".repeat(64), missing: [] }),
+    uploadBlob: () => Promise.resolve({ ok: true as const }),
+    commit: () => Promise.resolve({ address: "2001", protected: true } as CommitResponse),
+  };
+  let message = "";
+  try {
+    await publishBundle(api, bundle, { target: { vault: "home" }, feedback: true });
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  if (!message.includes("ignored feedback=true")) {
+    throw new Error(`expected an old-server error, got ${JSON.stringify(message)}`);
+  }
+});

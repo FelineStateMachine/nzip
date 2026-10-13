@@ -60,6 +60,12 @@ export async function publishBundle(
   }
   options.signal?.throwIfAborted();
   const result = await api.commit({ manifest: bundle.manifest, ...policy });
+  if (policy.feedback !== undefined && result.feedback !== policy.feedback) {
+    throw new Error(
+      `published ${result.address}, but the server ignored feedback=${policy.feedback}; ` +
+        "upgrade the nzip Worker to 0.12.0 or later",
+    );
+  }
   await report(total, "Published");
   return {
     ...result,

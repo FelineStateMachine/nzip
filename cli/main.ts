@@ -50,7 +50,8 @@ commands:
   │  ├─ push <dir|file> [target] [--new]      publish content; reuse source by default
   │  ├─ cp <target> [dir] [--overwrite]    copy a hosted bundle
   │  ├─ show <target>                      show site details
-  │  ├─ policy <target> [--ttl ...] [--password PW | --no-password]
+  │  ├─ policy <target> [--ttl ...] [--password PW | --no-password] [--feedback | --no-feedback]
+  │  ├─ feedback <target> [--request [--message TEXT]]   read notes or request a review
   │  ├─ ls [vault]                         list sites
   │  ├─ where <target>                     print this machine's source directory
   │  ├─ rm <target> [--yes]                delete a site
@@ -74,6 +75,9 @@ to named vaults — raw addresses are authenticated and mapped to a vault before
 vault policy flags (add/update): --max-ttl DAYS|none, --require-password | --allow-unprotected,
 --default-password-file FILE | --no-default-password. New sites inherit vault defaults;
 required protection and maximum TTL are enforced by the server.
+
+site feedback: push or policy with --feedback lets visitors of a password-protected site
+save notes via /__feedback.js; --request opens a review round and notifies your devices.
 
 notification privacy: titles and bodies may appear on a lock screen; never include
 passwords, tokens, private URLs, or sensitive personal data.
@@ -108,6 +112,7 @@ export async function main(argv = Deno.args): Promise<void> {
       "root",
       "max-ttl",
       "default-password-file",
+      "message",
     ],
     boolean: [
       "yes",
@@ -124,6 +129,9 @@ export async function main(argv = Deno.args): Promise<void> {
       "require-password",
       "allow-unprotected",
       "no-default-password",
+      "feedback",
+      "no-feedback",
+      "request",
     ],
     alias: { h: "help", V: "version", y: "yes" },
     collect: ["root"],
@@ -169,6 +177,15 @@ export async function main(argv = Deno.args): Promise<void> {
         yes: args.yes,
         toSeq,
         list: args.list,
+        feedback: args.feedback && args["no-feedback"]
+          ? fail("choose either --feedback or --no-feedback, not both")
+          : args.feedback
+          ? true
+          : args["no-feedback"]
+          ? false
+          : undefined,
+        request: args.request,
+        message: args.message,
       });
     case "app":
       return await cmdApp(config, rest, {

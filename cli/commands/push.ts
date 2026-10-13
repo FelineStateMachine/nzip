@@ -8,10 +8,11 @@ import { publishBundle } from "../lib/publish.ts";
 export function formatPushPolicy(
   expiresAt: number | null,
   protectedSite: boolean,
+  feedback = false,
 ): string {
   const expiry = expiresAt === null ? "forever" : `expires in ${ttlLeft(expiresAt)}`;
   const passwordStatus = protectedSite ? "password protected" : "no password";
-  return `${expiry}, ${passwordStatus}`;
+  return `${expiry}, ${passwordStatus}${feedback ? ", feedback on" : ""}`;
 }
 
 export async function cmdPush(
@@ -23,10 +24,11 @@ export async function cmdPush(
   noPassword: boolean,
   newSite: boolean,
   app?: { contentSecurityPolicy?: string },
+  feedback?: boolean,
 ): Promise<void> {
   if (!path) {
     fail(
-      "usage: nzip site push <dir|file> [target] [--new] [--ttl 14d|forever] [--password PW | --no-password]",
+      "usage: nzip site push <dir|file> [target] [--new] [--ttl 14d|forever] [--password PW | --no-password] [--feedback | --no-feedback]",
     );
   }
   if (password !== undefined && noPassword) {
@@ -98,6 +100,7 @@ export async function cmdPush(
     target,
     ttl,
     password: passwordPolicy,
+    ...(feedback === undefined ? {} : { feedback }),
     ...(app === undefined ? {} : { app }),
   }, {
     onProgress: ({ message }) => emit(() => console.log(dim(`  ${message}`))),
@@ -116,7 +119,7 @@ export async function cmdPush(
   }).catch(() => {});
 
   const label = res.alias ? `${"vault" in target ? target.vault : "?"}:${res.alias}` : res.address;
-  const policy = formatPushPolicy(res.expiresAt, res.protected);
+  const policy = formatPushPolicy(res.expiresAt, res.protected, res.feedback === true);
   emit(
     () =>
       console.log(

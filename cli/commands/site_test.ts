@@ -25,6 +25,10 @@ Deno.test("site groups the complete target lifecycle", () => {
     kind: "policy",
     target: "work:demo",
   });
+  assertEquals(parseSiteInvocation(["feedback", "work:demo"]), {
+    kind: "feedback",
+    target: "work:demo",
+  });
   assertEquals(parseSiteInvocation(["ls", "work"]), { kind: "ls", vault: "work" });
   assertEquals(parseSiteInvocation(["where", "work:demo"]), {
     kind: "where",

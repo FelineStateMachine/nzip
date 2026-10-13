@@ -31,6 +31,9 @@ export interface SiteRow {
   password_hash: string | null;
   content_security_policy: string | null;
   auth_version: number;
+  feedback: number;
+  feedback_requested_at: number | null;
+  feedback_submitted_at: number | null;
 }
 
 export interface VaultRow {
@@ -145,6 +148,10 @@ export interface CommitParams {
   passwordHash?: string | null;
   /** undefined preserves an existing CSP; null explicitly clears it */
   contentSecurityPolicy?: string | null;
+  /** undefined preserves an existing feedback setting (off for new sites) */
+  feedback?: boolean;
+  /** Drop stored notes and the review round, e.g. after the audience (password) changed. */
+  resetFeedback?: boolean;
   isNew: boolean;
   note?: string;
 }
@@ -162,8 +169,8 @@ export async function commitSite(env: Env, p: CommitParams): Promise<number> {
     ? env.DB.prepare(
       `INSERT INTO sites (
          address, vault_slot, alias, current_manifest, created_at, updated_at, expires_at,
-         password_hash, content_security_policy
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         password_hash, content_security_policy, feedback
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       p.address,
       p.vaultSlot,
@@ -174,8 +181,10 @@ export async function commitSite(env: Env, p: CommitParams): Promise<number> {
       p.expiresAt,
       p.passwordHash ?? null,
       p.contentSecurityPolicy ?? null,
+      p.feedback ? 1 : 0,
     )
-    : p.passwordHash === undefined && p.contentSecurityPolicy === undefined
+    : p.passwordHash === undefined && p.contentSecurityPolicy === undefined &&
+        p.feedback === undefined
     ? env.DB.prepare(
       `UPDATE sites SET current_manifest = ?, updated_at = ?, expires_at = ?, alias = COALESCE(?, alias)
        WHERE address = ?`,
@@ -185,6 +194,7 @@ export async function commitSite(env: Env, p: CommitParams): Promise<number> {
          alias = COALESCE(?, alias),
          password_hash = CASE WHEN ? = 1 THEN ? ELSE password_hash END,
          content_security_policy = CASE WHEN ? = 1 THEN ? ELSE content_security_policy END,
+         feedback = CASE WHEN ? = 1 THEN ? ELSE feedback END,
          auth_version = auth_version + ?
        WHERE address = ?`,
     ).bind(
@@ -196,6 +206,8 @@ export async function commitSite(env: Env, p: CommitParams): Promise<number> {
       p.passwordHash ?? null,
       p.contentSecurityPolicy === undefined ? 0 : 1,
       p.contentSecurityPolicy ?? null,
+      p.feedback === undefined ? 0 : 1,
+      p.feedback ? 1 : 0,
       p.passwordHash === undefined ? 0 : 1,
       p.address,
     );
@@ -208,9 +220,20 @@ export async function commitSite(env: Env, p: CommitParams): Promise<number> {
     env.DB.prepare(
       "DELETE FROM pushes WHERE address = ? AND seq <= ?",
     ).bind(p.address, seq - HISTORY_CAP),
+    ...(p.resetFeedback ? feedbackResetStatements(env, p.address) : []),
   ];
   await env.DB.batch(statements);
   return seq;
+}
+
+/** Statements that forget a site's notes and review round, for use inside a write batch. */
+export function feedbackResetStatements(env: Env, address: number): D1PreparedStatement[] {
+  return [
+    env.DB.prepare("DELETE FROM site_feedback WHERE address = ?").bind(address),
+    env.DB.prepare(
+      "UPDATE sites SET feedback_requested_at = NULL, feedback_submitted_at = NULL WHERE address = ?",
+    ).bind(address),
+  ];
 }
 
 export async function listSites(
@@ -542,6 +565,7 @@ export function siteRowToInfo(
     expiresAt: row.expires_at,
     url: siteUrl(env, address),
     protected: row.password_hash !== null,
+    feedback: row.feedback === 1,
   };
 }
 
